@@ -1,0 +1,168 @@
+{
+  "repeatedClasses": [
+    [
+      "tier-card",
+      98
+    ],
+    [
+      "tier-card-enter-to",
+      98
+    ],
+    [
+      "character-card",
+      71
+    ],
+    [
+      "character-image",
+      71
+    ],
+    [
+      "character-info",
+      71
+    ],
+    [
+      "character-name",
+      71
+    ],
+    [
+      "character-desc",
+      71
+    ],
+    [
+      "pc-desc",
+      71
+    ],
+    [
+      "mobile-desc",
+      71
+    ],
+    [
+      "vote-count",
+      71
+    ],
+    [
+      "vote-btn",
+      71
+    ],
+    [
+      "star",
+      60
+    ],
+    [
+      "particle",
+      60
+    ]
+  ],
+  "dialogHits": {
+    "确定投给TA吗": [
+      {
+        "tag": "div",
+        "cls": "custom-alert-overlay2",
+        "attrs": {
+          "class": "custom-alert-overlay2",
+          "style": "display: none;"
+        },
+        "outer": "<div class=\"custom-alert-overlay2\" style=\"display: none;\"><div class=\"custom-double custom-alert-box\"><div class=\"custom-alert-message custom-double-title\">确定投给TA吗？</div> <div class=\"custom-double-desc\">组还可以投2票</div> <div class=\"custom-double-buttonGroup\"><div class=\"custom-alert-button-2\">我再想想</div"
+      },
+      {
+        "tag": "div",
+        "cls": "custom-double custom-alert-box",
+        "attrs": {
+          "class": "custom-double custom-alert-box"
+        },
+        "outer": "<div class=\"custom-double custom-alert-box\"><div class=\"custom-alert-message custom-double-title\">确定投给TA吗？</div> <div class=\"custom-double-desc\">组还可以投2票</div> <div class=\"custom-double-buttonGroup\"><div class=\"custom-alert-button-2\">我再想想</div> <div class=\"custom-alert-button\">确认投票</div></div></div>"
+      },
+      {
+        "tag": "div",
+        "cls": "custom-alert-message custom-double-title",
+        "attrs": {
+          "class": "custom-alert-message custom-double-title"
+        },
+        "outer": "<div class=\"custom-alert-message custom-double-title\">确定投给TA吗？</div>"
+      }
+    ],
+    "确认投票": [
+      {
+        "tag": "div",
+        "cls": "custom-alert-overlay2",
+        "attrs": {
+          "class": "custom-alert-overlay2",
+          "style": "display: none;"
+        },
+        "outer": "<div class=\"custom-alert-overlay2\" style=\"display: none;\"><div class=\"custom-double custom-alert-box\"><div class=\"custom-alert-message custom-double-title\">确定投给TA吗？</div> <div class=\"custom-double-desc\">组还可以投2票</div> <div class=\"custom-double-buttonGroup\"><div class=\"custom-alert-button-2\">我再想想</div"
+      },
+      {
+        "tag": "div",
+        "cls": "custom-double custom-alert-box",
+        "attrs": {
+          "class": "custom-double custom-alert-box"
+        },
+        "outer": "<div class=\"custom-double custom-alert-box\"><div class=\"custom-alert-message custom-double-title\">确定投给TA吗？</div> <div class=\"custom-double-desc\">组还可以投2票</div> <div class=\"custom-double-buttonGroup\"><div class=\"custom-alert-button-2\">我再想想</div> <div class=\"custom-alert-button\">确认投票</div></div></div>"
+      },
+      {
+        "tag": "div",
+        "cls": "custom-double-buttonGroup",
+        "attrs": {
+          "class": "custom-double-buttonGroup"
+        },
+        "outer": "<div class=\"custom-double-buttonGroup\"><div class=\"custom-alert-button-2\">我再想想</div> <div class=\"custom-alert-button\">确认投票</div></div>"
+      }
+    ],
+    "我再想想": [
+      {
+        "tag": "div",
+        "cls": "custom-alert-overlay2",
+        "attrs": {
+          "class": "custom-alert-overlay2",
+          "style": "display: none;"
+        },
+        "outer": "<div class=\"custom-alert-overlay2\" style=\"display: none;\"><div class=\"custom-double custom-alert-box\"><div class=\"custom-alert-message custom-double-title\">确定投给TA吗？</div> <div class=\"custom-double-desc\">组还可以投2票</div> <div class=\"custom-double-buttonGroup\"><div class=\"custom-alert-button-2\">我再想想</div"
+      },
+      {
+        "tag": "div",
+        "cls": "custom-double custom-alert-box",
+        "attrs": {
+          "class": "custom-double custom-alert-box"
+        },
+        "outer": "<div class=\"custom-double custom-alert-box\"><div class=\"custom-alert-message custom-double-title\">确定投给TA吗？</div> <div class=\"custom-double-desc\">组还可以投2票</div> <div class=\"custom-double-buttonGroup\"><div class=\"custom-alert-button-2\">我再想想</div> <div class=\"custom-alert-button\">确认投票</div></div></div>"
+      },
+      {
+        "tag": "div",
+        "cls": "custom-double-buttonGroup",
+        "attrs": {
+          "class": "custom-double-buttonGroup"
+        },
+        "outer": "<div class=\"custom-double-buttonGroup\"><div class=\"custom-alert-button-2\">我再想想</div> <div class=\"custom-alert-button\">确认投票</div></div>"
+      }
+    ],
+    "人气王": [],
+    "投票": [
+      {
+        "tag": "html",
+        "cls": "",
+        "attrs": {
+          "lang": "zh-CN",
+          "style": "--aliyun-zoom-ratio: 1; --aliyun-slide-width: 360px; --aliyun-slide-height: 40px; --aliyun-text-width: 280px; --aliyun-checkbox-size: 20px;"
+        },
+        "outer": "<html lang=\"zh-CN\" style=\"--aliyun-zoom-ratio: 1; --aliyun-slide-width: 360px; --aliyun-slide-height: 40px; --aliyun-text-width: 280px; --aliyun-checkbox-size: 20px;\"><head>\n    <title>2026星铁人气投票</title>\n    <meta charset=\"UTF-8\">\n    <link rel=\"icon\" type=\"image/x-icon\" href=\"https://static.appoint"
+      },
+      {
+        "tag": "title",
+        "cls": "",
+        "attrs": {},
+        "outer": "<title>2026星铁人气投票</title>"
+      },
+      {
+        "tag": "div",
+        "cls": "page active",
+        "attrs": {
+          "id": "home",
+          "class": "page active"
+        },
+        "outer": "<div id=\"home\" class=\"page active\"><div class=\"hero-banner\"><div class=\"placeholder-image\"><img id=\"heroImage2\" src=\"https://static.appoint.icu/Railvote/kvResult2.png\" alt=\"星穹铁道周年庆\" class=\"hero-image-2\"></div><div class=\"cloud-class\"><canvas width=\"1280\" height=\"1600\"></canvas></div></div> <div clas"
+      }
+    ]
+  },
+  "totalElements": 1670,
+  "bodyText": "成就解锁\n成就描述\n+10 星琼\n年度角色\n活动赛程\n银河战力党\n一战到底\n最佳评选\n主办：米游社\n「崩坏：星穹铁道版主组」\n\n列车广播\n\n关注\n赛程进度\n点击赛段可查看规则\n初赛\n5/5 - 5/8\n进行中\n复赛\n5/9 - 5/12\n待开启\n复活赛\n5/13 - 5/15\n待开启\n决赛\n5/16 - 5/19\n待开启\n初赛截止时间\n00\n天\n03\n时\n23\n分\n27\n秒\n-> 点击查看完整赛事规则 <-\n为喜爱的角色投出宝贵一票\n\n复赛分组按照角色名称第二个字首字母排列\n\n每组第一名晋级决赛，冠军将定制 社区限定动态头像\n\nA组\n白厄\n亿万火种之怒，燃尽此身\n250784票\n投票\n不死途\n恶兽们，开始自相残杀吧\n107921票\n投票\n阿格莱雅\n偶然与意外，独具美感\n83139票\n投票\n波提欧\n该开枪就别说废话\n36212票\n投票\n大丽花\n记忆的坟茔，已然敞开\n21713票\n投票\n布洛妮娅\n铭记，风雪从未消失\n16297票\n投票\n白露\n这葫芦里卖的什么药\n8180票\n投票\n艾丝妲\n一切，都是星辰的选择\n7889票\n投票\n阿兰\n活着，才能继续战斗\n3364票\n投票\nB组\n丹恒\n已经结束的过去并不重要\n155481票\n投票\n风堇\n拨开云雾，重见晴空！\n98223票\n投票\n黑塔/大黑塔\n好奇心，可是很危险的\n87960票\n投票\n绯英\n神鬼无赦！\n70972票\n投票\n飞霄\n大捷，已定！\n38113票\n投票\n符玄\n以额间之眼观之…\n12254票\n投票\n翡翠\n总该有第二手准备\n10356票\n投票\n桂乃芬\n给您拜个早年吧！\n3088票\n投票\n寒鸦\n有差事没办完…又还阳\n3088票\n投票\nC组\n黄泉\n流淌吧，过往的刀光\n145961票\n投票\n花火/火花\n我们现在可是一伙的~\n113700票\n投票\n海瑟音\n嘘，请在此驻足静听\n64455票\n投票\n椒丘\n文火慢熬抑或武火爆炒\n37879票\n投票\n藿藿\n你、你们不要过来啊\n34045票\n投票\n黑天鹅\n命运，并非一种选择\n19735票\n投票\n加拉赫\n生命醇美如佳酿\n14523票\n投票\n杰帕德\n铸成此志，永不终结！\n11760票\n投票\n虎克\n你说谁是小家伙\n6551票\n投票\nD组\n流萤\n飞萤扑火，向死而生\n186318票\n投票\n卡芙卡\n美妙的时光总有尽头\n154059票\n投票\n景元\n该出奇兵了\n90705票\n投票\n刻律德菈\n败者成灰，胜者为王…\n50869票\n投票\n镜流\n照彻万川！\n28953票\n投票\n姬子\n要来喝一杯咖啡吗\n25177票\n投票\n灵砂\n世间种种，过眼云烟\n17283票\n投票\n克拉拉\n帮帮我史瓦罗先生！\n7436票\n投票\n玲可\n想去做的话就去做\n3395票\n投票\nE组\n那刻夏\n魔术技巧！\n175914票\n投票\n乱破\n斩！断！破！\n74909票\n投票\n青雀\n让我摸个鱼吧\n59864票\n投票\n罗刹\n凡夺取的，必将偿还\n40426票\n投票\n米沙\n不知时间还剩多少…\n26052票\n投票\n貊泽\n幽冥，奔袭！\n16970票\n投票\n娜塔莎\n感受生命的冲击\n7613票\n投票\n佩拉\n这样…然后这样…\n5295票\n投票\n卢卡\n见识下火花四溅吧\n4369票\n投票\nF组\n砂金\n骰子已经掷下\n272355票\n投票\n三月七/长夜月\n要陪我去拍照吗\n122566票\n投票\n刃\n此番美景邀诸位共赏\n79874票\n投票\n阮·梅\n仍有值得研究的价值\n39744票\n投票\n缇宝\n乘着西风，出发咯\n31317票\n投票\n赛飞儿\n一人传虚，万人传实\n31104票\n投票\n停云\n前尘旧梦，俱已往矣\n22574票\n投票\n素裳\n吃我一招，太虚形蕴\n14360票\n"
+}
