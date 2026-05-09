@@ -204,9 +204,13 @@ class ProxyManager:
 # =============================================================================
 CAPTCHA_PROBE_TIMEOUT_MS  = 1500    # [STRONG] short — "未弹" is logged immediately if absent
 # How long to wait after clicking .vote-btn for EITHER the captcha or the
-# confirm modal to appear. With 6 concurrent windows + slow paid proxies
-# the SDK boot can serialize unpredictably, so we give 5 minutes of slack.
-CAPTCHA_APPEAR_TIMEOUT_MS = 300_000   # 5 minutes
+# confirm modal to appear. Observed range: 6-20 s typical, hence a 3-min
+# margin handles the worst proxies without leaving very-broken proxies
+# blocking for too long.
+CAPTCHA_APPEAR_TIMEOUT_MS = 180_000   # 3 minutes
+# How long the human has to drag the slider once the captcha pops up.
+# 3 minutes lets you cycle through 6 concurrent puzzles at a relaxed pace.
+CAPTCHA_SOLVE_TIMEOUT_MS  = 180_000   # 3 minutes
 # How long to wait for the post-captcha confirm modal to appear after a
 # successful captcha solve. Page-internal, fast regardless of network.
 CONFIRM_MODAL_TIMEOUT_MS  = 20_000
@@ -215,7 +219,7 @@ CONFIRM_MODAL_TIMEOUT_MS  = 20_000
 # debugging so the script halts and you can inspect the page; otherwise
 # the same as CONFIRM_MODAL_TIMEOUT_MS so a stuck attempt advances.
 SUCCESS_MODAL_TIMEOUT_MS  = CONFIRM_MODAL_TIMEOUT_MS
-NAVIGATE_TIMEOUT_MS       = 60_000  # bumped from 30 s — slow networks / cold-start browsers
+NAVIGATE_TIMEOUT_MS       = 120_000  # bumped to 2 min — slow paid proxies otherwise crash here
 # MAX_RETRIES disabled per user request — slow page loads were triggering
 # retries during human captcha-solving, refreshing the page and losing
 # the user's in-progress slider drag. Set back to 3 to re-enable.
@@ -273,19 +277,26 @@ def _tile_for_slot(slot: int, screen_w: int, screen_h: int,
 
 def _make_captcha_init_script(offset_x: int, offset_y: int) -> str:
     """Build an init script that pins .window-show to viewport center plus
-    a manual (offset_x, offset_y) pixel offset. Inline-style + !important
-    is the highest CSS specificity, so even the vendor's own inline styles
-    lose. MutationObserver + interval re-apply in case the SDK overrides."""
+    a manual (offset_x, offset_y) pixel offset. The offset is exposed via
+    `window.__captchaOffsetX/Y` globals — Python can `page.evaluate(...)`
+    new values into them mid-flight to reposition a visible captcha
+    without waiting for the next vote.  `window.__captchaFixAll()` is
+    also exposed so the slider can trigger an immediate redraw."""
     return r"""
 (() => {
-    const OFFSET_X = %d;
-    const OFFSET_Y = %d;
+    // Initial values baked from the Python side. Python can overwrite
+    // these globals at any time to change the live position.
+    window.__captchaOffsetX = %d;
+    window.__captchaOffsetY = %d;
+
     function forceCenter(el) {
         if (!el) return;
         const s = el.style;
+        const x = window.__captchaOffsetX | 0;
+        const y = window.__captchaOffsetY | 0;
         s.setProperty('position', 'fixed', 'important');
-        s.setProperty('left', `calc(50%% + ${OFFSET_X}px)`, 'important');
-        s.setProperty('top',  `calc(50%% + ${OFFSET_Y}px)`, 'important');
+        s.setProperty('left', `calc(50%% + ${x}px)`, 'important');
+        s.setProperty('top',  `calc(50%% + ${y}px)`, 'important');
         s.setProperty('right', 'auto', 'important');
         s.setProperty('bottom', 'auto', 'important');
         s.setProperty('transform', 'translate(-50%%, -50%%)', 'important');
@@ -306,6 +317,11 @@ def _make_captcha_init_script(offset_x: int, offset_y: int) -> str:
         document.querySelectorAll('.window-show').forEach(forceCenter);
         document.querySelectorAll('.mask-show').forEach(forceFullViewport);
     }
+    // Expose fixAll so a Python-side evaluate can trigger an immediate
+    // redraw after pushing new offsets — saves up to 300 ms over the
+    // setInterval fallback.
+    window.__captchaFixAll = fixAll;
+
     fixAll();
     try {
         new MutationObserver(fixAll).observe(document.documentElement, {
@@ -677,11 +693,13 @@ class Voter:
 
         阿里云 captcha 弹出时，浏览器里出现一个 .window-show 容器；
         用户在浏览器里把滑块滑到位之后，这个容器会消失。
-        我们就等它消失即可——超时上限 120 秒（够一个人慢慢滑）。
+        我们就等它消失即可——超时上限 180 秒（够一个人慢慢滑，
+        6 个并发也来得及一个一个解）。
         """
-        self.log("[INFO] 请在浏览器窗口内完成滑块验证（120 秒内）")
+        timeout_s = CAPTCHA_SOLVE_TIMEOUT_MS // 1000
+        self.log(f"[INFO] 请在浏览器窗口内完成滑块验证（{timeout_s} 秒内）")
         await page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
-            state="hidden", timeout=120_000)
+            state="hidden", timeout=CAPTCHA_SOLVE_TIMEOUT_MS)
         self.log("[OK] 滑块已通过，继续投票")
 
 
@@ -734,9 +752,10 @@ class VoteRunner:
         self._stop = threading.Event()
         self._success = 0
         self._lock = threading.Lock()
-        # references for thread-safe cancellation
+        # references for thread-safe cancellation + slider push
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._current_tasks: List[asyncio.Task] = []
+        self._browser: Optional[Browser] = None
 
     def request_stop(self):
         """[HARD] cancel the running batch immediately, not just at boundary."""
@@ -748,6 +767,36 @@ class VoteRunner:
         for t in list(self._current_tasks):
             if not t.done():
                 t.cancel()
+
+    def update_captcha_offset(self, x: int, y: int):
+        """Thread-safe: called from the GUI thread when the user drags a
+        slider. Updates the shared cfg (so future contexts get the value
+        baked in) AND pushes the new offset to every page currently open
+        in the running browser, which causes any visible captcha to
+        re-position immediately."""
+        self.cfg.captcha_offset_x = x
+        self.cfg.captcha_offset_y = y
+        if self._loop is None or self._loop.is_closed():
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(
+                self._push_offset_to_all(x, y), self._loop)
+        except Exception:
+            pass
+
+    async def _push_offset_to_all(self, x: int, y: int):
+        if self._browser is None:
+            return
+        # Set globals + trigger immediate redraw via the exposed fixAll.
+        js = (f"window.__captchaOffsetX = {x};"
+              f"window.__captchaOffsetY = {y};"
+              f"if (window.__captchaFixAll) window.__captchaFixAll();")
+        for ctx in list(self._browser.contexts):
+            for page in list(ctx.pages):
+                try:
+                    await page.evaluate(js)
+                except Exception:
+                    pass
 
     async def _async_main(self):
         self._loop = asyncio.get_running_loop()
@@ -778,6 +827,7 @@ class VoteRunner:
             # contexts each with their own proxy.  This matches the
             # "page pool" log without forcing per-vote browser launches.
             browser = await engine.launch(**launch_kwargs)
+            self._browser = browser  # expose for slider live-update push
             try:
                 # [HARD] log: "page pool 就绪：N 个 context" — pre-warm
                 # `concurrency` contexts so the first batch starts faster.
@@ -815,6 +865,7 @@ class VoteRunner:
                         f"{batch_end}/{total} (成功 {self._success})")
                     vote_id = batch_end
             finally:
+                self._browser = None
                 try:
                     await browser.close()
                 except Exception:
@@ -1055,18 +1106,16 @@ class App(tk.Tk):
 
     def _on_captcha_offset_change(self):
         """Slider callback. Updates GUI hint, persists offsets, and pushes
-        them to a running runner so future vote attempts pick up the new
-        values without restart. Currently-displayed captchas are not
-        repositioned mid-flight (Aliyun's iframe content is opaque to us)."""
+        them in real-time to all currently-open pages so a visible captcha
+        repositions immediately (no restart needed)."""
         x = int(self.var_captcha_x.get())
         y = int(self.var_captcha_y.get())
         self.var_captcha_hint.set(self._format_captcha_hint(x, y))
-        # update the running runner's config in-place; voter shares the
-        # same reference, so the next _new_context picks it up
+        # live push to running browser — also updates runner.cfg so future
+        # contexts bake in the latest value
         if self.runner is not None:
             try:
-                self.runner.cfg.captcha_offset_x = x
-                self.runner.cfg.captcha_offset_y = y
+                self.runner.update_captcha_offset(x, y)
             except Exception:
                 pass
         # debounced disk save — Scale fires this many times per second,
