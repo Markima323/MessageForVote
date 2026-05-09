@@ -2,12 +2,17 @@
 import asyncio, time
 from playwright.async_api import async_playwright
 
-CHROME = r'C:\Program Files\Google\Chrome\Application\chrome.exe'
+from _paths import find_chrome
+
+CHROME = find_chrome()  # None → falls through to Playwright bundled chromium
 URL = 'https://www.starrailawards.com/Vote2026/index.html'
 
 async def measure(label: str, install_blocker: bool):
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True, executable_path=CHROME)
+        kwargs = {"headless": True}
+        if CHROME:
+            kwargs["executable_path"] = CHROME
+        browser = await pw.chromium.launch(**kwargs)
         ctx = await browser.new_context(viewport={'width': 1280, 'height': 1600},
                                         locale='zh-CN')
         if install_blocker:

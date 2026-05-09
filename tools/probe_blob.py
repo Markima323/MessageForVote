@@ -2,10 +2,12 @@
 for any plaintext leakage. Pyarmor 9.x trial sometimes leaves frame
 metadata (function names, file path) in cleartext between the header
 and the encrypted body."""
-import re, ast, struct, collections
+import os, re, ast, struct, collections
 
-VOTE = r'd:\Arbeit\MessageForVote\StarRailVote\_internal\vote.py'
-GUI  = r'd:\Arbeit\MessageForVote\extracted\gui.pyc'
+from _paths import BUNDLE_INTERNAL, EXTRACTED_DIR
+
+VOTE = os.path.join(BUNDLE_INTERNAL, 'vote.py')
+GUI  = os.path.join(EXTRACTED_DIR, 'gui.pyc')
 
 def get_blob_from_vote_py(path):
     text = open(path, encoding='utf-8').read()

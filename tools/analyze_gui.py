@@ -1,10 +1,12 @@
 """Run with Python 3.13. Loads gui.pyc as a marshal'd code object,
 disassembles it, and emits a structured analysis (functions, classes,
 constants, names) suitable for reconstructing the source."""
-import marshal, dis, json, sys, types, io
+import marshal, dis, json, sys, types, io, os
 
-GUI_PYC = r'd:\Arbeit\MessageForVote\extracted\gui.pyc'
-OUT_DIR = r'd:\Arbeit\MessageForVote\extracted'
+from _paths import EXTRACTED_DIR
+
+GUI_PYC = os.path.join(EXTRACTED_DIR, 'gui.pyc')
+OUT_DIR = EXTRACTED_DIR
 
 def safe_repr(x, maxlen=2000):
     try:

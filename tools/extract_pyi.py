@@ -3,8 +3,10 @@ Targets the CArchive at the end of a PyInstaller-frozen exe.
 Format reference: https://pyinstaller.org/en/stable/ (operating-mode/format)"""
 import os, sys, struct, zlib
 
-EXE = r'd:\Arbeit\MessageForVote\StarRailVote\StarRailVote.exe'
-OUT = r'd:\Arbeit\MessageForVote\extracted'
+from _paths import BUNDLE_EXE, EXTRACTED_DIR
+
+EXE = BUNDLE_EXE
+OUT = EXTRACTED_DIR
 
 MAGIC = b'MEI\014\013\012\013\016'
 COOKIE_FMT = '!8sIIii64s'    # magic, lengthofPackage, toc, tocLen, pyver, pylibname

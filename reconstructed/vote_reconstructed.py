@@ -203,11 +203,15 @@ class ProxyManager:
 # Per-attempt timing observed: ~9-11 s navigation + ~5-6 s modal wait.
 # =============================================================================
 CAPTCHA_PROBE_TIMEOUT_MS  = 1500    # [STRONG] short — "未弹" is logged immediately if absent
-# How long to wait after clicking .vote-btn for EITHER the captcha or the
-# confirm modal to appear. Observed range: 6-20 s typical, hence a 3-min
-# margin handles the worst proxies without leaving very-broken proxies
-# blocking for too long.
-CAPTCHA_APPEAR_TIMEOUT_MS = 180_000   # 3 minutes
+# How long to wait at the FIRST attempt for captcha-or-modal to appear.
+# If neither shows up within this window we suspect the page state is
+# stuck (proxy hiccup, captcha SDK init failure, etc.) and reload + re-
+# click the vote button before the second wait phase.
+STUCK_DETECT_MS           = 90_000    # 90 s per phase
+# Total budget = STUCK_DETECT_MS × 2 = 3 minutes. Same as the user's
+# original "3 分钟没弹出就刷新" requirement, with active recovery in the
+# middle instead of just one long passive wait.
+CAPTCHA_APPEAR_TIMEOUT_MS = 180_000   # 3 minutes total (used in retry cycles)
 # How long the human has to drag the slider once the captcha pops up.
 # 3 minutes lets you cycle through 6 concurrent puzzles at a relaxed pace.
 CAPTCHA_SOLVE_TIMEOUT_MS  = 180_000   # 3 minutes
@@ -316,6 +320,11 @@ def _make_captcha_init_script(offset_x: int, offset_y: int) -> str:
     function fixAll() {
         document.querySelectorAll('.window-show').forEach(forceCenter);
         document.querySelectorAll('.mask-show').forEach(forceFullViewport);
+        // Re-center the page's own confirm/success modal boxes too. We
+        // touch ONLY the inner box (.custom-alert-box), not the outer
+        // overlay — the overlay is the dim backdrop and must stay full
+        // viewport, while the box is the actual popup content.
+        document.querySelectorAll('.custom-alert-box').forEach(forceCenter);
     }
     // Expose fixAll so a Python-side evaluate can trigger an immediate
     // redraw after pushing new offsets — saves up to 300 ms over the
@@ -379,6 +388,49 @@ class Voter:
         # callback fires once per successful card locate; receiver decides
         # how to dedupe / persist
         self.on_resolved = on_resolved or (lambda _name, _idx: None)
+
+    async def _wait_for_captcha_or_modal(self, page: Page,
+                                          timeout_ms: int) -> Optional[str]:
+        """Race captcha popup vs confirm modal. Returns 'captcha',
+        'modal', or None on timeout."""
+        captcha_task = asyncio.create_task(
+            page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
+                state="visible", timeout=timeout_ms),
+            name="captcha")
+        modal_task = asyncio.create_task(
+            page.locator(self.CONFIRM_MODAL_SELECTOR).filter(
+                has_text=self.CONFIRM_TITLE_TEXT
+            ).first.wait_for(state="visible", timeout=timeout_ms),
+            name="modal")
+        done, pending = await asyncio.wait(
+            [captcha_task, modal_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for t in pending:
+            t.cancel()
+        winner = next(iter(done))
+        try:
+            winner.result()
+        except Exception:
+            return None
+        return winner.get_name()
+
+    async def _reload_and_reclick(self, page: Page, vote_id: int) -> bool:
+        """Recovery action when nothing appears after the first wait.
+        Reloads the page, re-locates the candidate, clicks vote-btn
+        again. Returns True on success, False if the recovery itself
+        threw (in which case the vote attempt is hopeless)."""
+        try:
+            await page.reload(wait_until="domcontentloaded",
+                              timeout=NAVIGATE_TIMEOUT_MS)
+            card = await self._locate_card(page)
+            await card.scroll_into_view_if_needed()
+            await card.locator(self.VOTE_BUTTON_SELECTOR).click()
+            return True
+        except Exception as e:
+            self.log(f"[WARN] [{vote_id}] 刷新重试失败: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+            return False
 
     async def _save_debug_snapshot(self, page: Page, vote_id: int):
         """Save screenshot + HTML of the current page to debug_snapshots/.
@@ -547,50 +599,84 @@ class Voter:
             await card.scroll_into_view_if_needed()
             await card.locator(self.VOTE_BUTTON_SELECTOR).click()
 
-            # ---- race captcha vs confirm modal ----
-            # Use the longer CAPTCHA_APPEAR_TIMEOUT_MS here — through slow
-            # proxies, the Aliyun SDK can take 30-60 s to boot and render
-            # the slider. Aborting early kills the user's manual solve.
-            captcha_task = asyncio.create_task(
-                page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
-                    state="visible", timeout=CAPTCHA_APPEAR_TIMEOUT_MS),
-                name="captcha")
-            modal_task = asyncio.create_task(
-                page.locator(self.CONFIRM_MODAL_SELECTOR).filter(
-                    has_text=self.CONFIRM_TITLE_TEXT
-                ).first.wait_for(state="visible",
-                                 timeout=CAPTCHA_APPEAR_TIMEOUT_MS),
-                name="modal")
+            # ---- two-phase wait with stuck-detection recovery ----
+            # Phase 1: wait STUCK_DETECT_MS for captcha-or-modal.
+            # If neither appears, page.reload() + re-click vote-btn.
+            # Phase 2: wait another STUCK_DETECT_MS.
+            # Total budget: 2 × STUCK_DETECT_MS (= 3 min by default).
             self.log(f"[INFO] [{vote_id}] 等待 captcha 或确认模态出现 "
-                     f"(最多 {CAPTCHA_APPEAR_TIMEOUT_MS // 1000} 秒)")
-            done, pending = await asyncio.wait(
-                [captcha_task, modal_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            for t in pending:
-                t.cancel()
-            winner = next(iter(done))
-            try:
-                winner.result()
-            except Exception:
-                self.log(f"[INFO] [{vote_id}] 等不到确认投票模态")
-                return False
-
-            if winner.get_name() == "captcha":
-                self.log(f"[INFO] [{vote_id}] 弹出 captcha，进入处理")
-                try:
-                    await self._handle_captcha(page)
-                except NotImplementedError as e:
-                    self.log(f"[WARN] [{vote_id}] captcha 处理未实现: {e}")
+                     f"(每阶段 {STUCK_DETECT_MS // 1000} 秒, 共 2 阶段)")
+            outcome = await self._wait_for_captcha_or_modal(
+                page, STUCK_DETECT_MS)
+            if outcome is None:
+                self.log(f"[INFO] [{vote_id}] 第 1 阶段超时，刷新页面重试")
+                if not await self._reload_and_reclick(page, vote_id):
                     return False
-                # after captcha solved, wait for the confirm modal
-                try:
-                    await page.locator(self.CONFIRM_MODAL_SELECTOR).filter(
-                        has_text=self.CONFIRM_TITLE_TEXT
-                    ).first.wait_for(state="visible",
-                                     timeout=CONFIRM_MODAL_TIMEOUT_MS)
-                except Exception:
-                    self.log(f"[INFO] [{vote_id}] 等不到确认投票模态")
+                outcome = await self._wait_for_captcha_or_modal(
+                    page, STUCK_DETECT_MS)
+                if outcome is None:
+                    self.log(f"[INFO] [{vote_id}] 刷新后仍无 captcha/确认框，放弃")
+                    return False
+
+            if outcome == "captcha":
+                self.log(f"[INFO] [{vote_id}] 弹出 captcha，进入处理")
+                # Loop: solve captcha → wait for confirm modal. If the
+                # modal doesn't show up (typical after a wrong slide
+                # consumed the captcha without firing the action), click
+                # the vote button again to trigger a fresh captcha. Up
+                # to MAX_CAPTCHA_CYCLES iterations.
+                MAX_CAPTCHA_CYCLES = 5
+                got_modal = False
+                for cycle in range(MAX_CAPTCHA_CYCLES):
+                    try:
+                        await self._handle_captcha(page)
+                    except NotImplementedError as e:
+                        self.log(f"[WARN] [{vote_id}] captcha 处理未实现: {e}")
+                        return False
+                    # short wait for confirm modal — page-internal transition
+                    try:
+                        await page.locator(self.CONFIRM_MODAL_SELECTOR).filter(
+                            has_text=self.CONFIRM_TITLE_TEXT
+                        ).first.wait_for(state="visible",
+                                         timeout=CONFIRM_MODAL_TIMEOUT_MS)
+                        got_modal = True
+                        break
+                    except Exception:
+                        pass
+                    # No modal — re-click vote button to retry the verify path
+                    self.log(f"[INFO] [{vote_id}] 验证后无确认模态，"
+                             f"自动再点投票按钮 (第 {cycle + 1} 次)")
+                    try:
+                        card = await self._locate_card(page)
+                        await card.scroll_into_view_if_needed()
+                        await card.locator(self.VOTE_BUTTON_SELECTOR).click()
+                    except Exception as e:
+                        self.log(f"[WARN] [{vote_id}] 重新点击投票按钮失败: "
+                                 f"{type(e).__name__}")
+                        return False
+                    # wait for next captcha (or modal directly) before next iter
+                    try:
+                        await page.locator(self.CAPTCHA_MODAL_SELECTOR
+                            ).first.wait_for(
+                                state="visible",
+                                timeout=CAPTCHA_APPEAR_TIMEOUT_MS)
+                    except Exception:
+                        # captcha didn't pop — maybe modal did?
+                        try:
+                            await page.locator(
+                                self.CONFIRM_MODAL_SELECTOR
+                            ).filter(
+                                has_text=self.CONFIRM_TITLE_TEXT
+                            ).first.wait_for(state="visible",
+                                             timeout=CONFIRM_MODAL_TIMEOUT_MS)
+                            got_modal = True
+                            break
+                        except Exception:
+                            self.log(f"[INFO] [{vote_id}] 重点后既没 captcha 也没模态")
+                            return False
+                if not got_modal:
+                    self.log(f"[WARN] [{vote_id}] {MAX_CAPTCHA_CYCLES} 次循环"
+                             f"仍未拿到确认模态，放弃")
                     return False
             else:
                 # confirm modal won the race — no captcha this round
@@ -842,28 +928,44 @@ class VoteRunner:
                 total = self.cfg.total_votes
                 concurrency = self.cfg.concurrency
 
-                # [HARD] BATCHED LOCKSTEP: submit `concurrency` votes,
-                # await ALL of them, then advance by `concurrency`.
-                vote_id = 0
-                while vote_id < total and not self._stop.is_set():
-                    batch_end = min(vote_id + concurrency, total)
-                    # slot index inside this batch → tile position on screen
-                    self._current_tasks = [
-                        asyncio.create_task(
-                            voter.vote_with_retries(browser, vid, slot=slot),
-                            name=f"vote-{vid}")
-                        for slot, vid in enumerate(range(vote_id, batch_end))
-                    ]
-                    results = await asyncio.gather(
-                        *self._current_tasks, return_exceptions=True)
-                    self._current_tasks = []
-                    with self._lock:
-                        for r in results:
-                            if r is True:
+                # PIPELINED CONCURRENCY: each slot is an independent worker
+                # that grabs the next vote_id atomically and immediately
+                # starts the next vote when its current one finishes —
+                # no waiting for siblings, no batched lockstep. From the
+                # user's perspective, each window refreshes/restarts
+                # autonomously the moment its own vote completes.
+                next_vote_id = [0]   # boxed for closure mutation
+
+                async def worker(slot: int):
+                    while not self._stop.is_set():
+                        with self._lock:
+                            vid = next_vote_id[0]
+                            if vid >= total:
+                                return
+                            next_vote_id[0] += 1
+                        try:
+                            ok = await voter.vote_with_retries(
+                                browser, vid, slot=slot)
+                        except asyncio.CancelledError:
+                            return
+                        except Exception as e:
+                            self.log(f"[ERROR] [{vid}] worker 异常: "
+                                     f"{type(e).__name__}: {str(e)[:120]}")
+                            ok = False
+                        with self._lock:
+                            if ok:
                                 self._success += 1
-                    self.set_status(
-                        f"{batch_end}/{total} (成功 {self._success})")
-                    vote_id = batch_end
+                            done = min(next_vote_id[0], total)
+                        self.set_status(
+                            f"{done}/{total} (成功 {self._success})")
+
+                self._current_tasks = [
+                    asyncio.create_task(worker(slot), name=f"worker-{slot}")
+                    for slot in range(concurrency)
+                ]
+                await asyncio.gather(*self._current_tasks,
+                                     return_exceptions=True)
+                self._current_tasks = []
             finally:
                 self._browser = None
                 try:

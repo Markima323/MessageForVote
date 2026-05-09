@@ -7,19 +7,19 @@ so even slow captcha or modal show-up gets captured.
 import asyncio, json, os, time
 from playwright.async_api import async_playwright
 
-OUT = r'd:\Arbeit\MessageForVote\extracted\probe_user_setup'
-os.makedirs(OUT, exist_ok=True)
+from _paths import EXTRACTED_DIR, ensure_dir, find_chrome
 
-CHROME = r'C:\Program Files\Google\Chrome\Application\chrome.exe'
+OUT = ensure_dir(os.path.join(EXTRACTED_DIR, 'probe_user_setup'))
+CHROME = find_chrome()  # None → use Playwright bundled chromium
 URL    = 'https://www.starrailawards.com/Vote2026/index.html'
 TARGET = '砂金'
 
 async def main():
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(
-            headless=False,        # match user's setup after captcha-handler edit
-            executable_path=CHROME,
-        )
+        kwargs = {"headless": False}
+        if CHROME:
+            kwargs["executable_path"] = CHROME
+        browser = await pw.chromium.launch(**kwargs)
         ctx = await browser.new_context(
             viewport={'width': 1280, 'height': 1600},
             locale='zh-CN',

@@ -4,16 +4,19 @@ so we can build a tighter selector that won't pick a hidden one.
 import asyncio, json, os
 from playwright.async_api import async_playwright
 
-OUT = r'd:\Arbeit\MessageForVote\extracted\confirm_button_probe'
-os.makedirs(OUT, exist_ok=True)
+from _paths import EXTRACTED_DIR, ensure_dir, find_chrome
 
-CHROME = r'C:\Program Files\Google\Chrome\Application\chrome.exe'
+OUT = ensure_dir(os.path.join(EXTRACTED_DIR, 'confirm_button_probe'))
+CHROME = find_chrome()  # None → use Playwright bundled chromium
 URL = 'https://www.starrailawards.com/Vote2026/index.html'
 
 
 async def main():
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True, executable_path=CHROME)
+        kwargs = {"headless": True}
+        if CHROME:
+            kwargs["executable_path"] = CHROME
+        browser = await pw.chromium.launch(**kwargs)
         ctx = await browser.new_context(viewport={'width': 1280, 'height': 1600},
                                         locale='zh-CN')
         page = await ctx.new_page()

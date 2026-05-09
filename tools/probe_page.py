@@ -9,8 +9,9 @@ import os
 import sys
 from playwright.async_api import async_playwright
 
-OUT_DIR = r'd:\Arbeit\MessageForVote\extracted\page_probe'
-os.makedirs(OUT_DIR, exist_ok=True)
+from _paths import EXTRACTED_DIR, ensure_dir
+
+OUT_DIR = ensure_dir(os.path.join(EXTRACTED_DIR, 'page_probe'))
 
 async def main():
     async with async_playwright() as pw:

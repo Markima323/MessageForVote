@@ -13,8 +13,9 @@ change after the click.
 import asyncio, json, os, time
 from playwright.async_api import async_playwright
 
-OUT = r'd:\Arbeit\MessageForVote\extracted\click_response'
-os.makedirs(OUT, exist_ok=True)
+from _paths import EXTRACTED_DIR, ensure_dir
+
+OUT = ensure_dir(os.path.join(EXTRACTED_DIR, 'click_response'))
 
 URL = 'https://www.starrailawards.com/Vote2026/index.html'
 TARGET = '砂金'

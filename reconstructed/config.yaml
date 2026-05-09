@@ -3,12 +3,12 @@ proxy_protocol: http
 target_character_name: 砂金
 target_button_index: 10
 concurrency: 6
-total_votes: 200
+total_votes: 2000
 browser_engine: chromium
 browser_path: C:\Program Files\Google\Chrome\Application\chrome.exe
 headless: false
 last_resolved_name: 砂金
 last_resolved_index: 10
-last_resolved_at: '2026-05-09 23:25:34'
+last_resolved_at: '2026-05-09 23:45:05'
 captcha_offset_x: -362
-captcha_offset_y: -208
+captcha_offset_y: -221

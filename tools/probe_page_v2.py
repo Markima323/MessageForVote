@@ -10,9 +10,10 @@ import asyncio, json, os, re
 from playwright.async_api import async_playwright
 import httpx
 
+from _paths import EXTRACTED_DIR, ensure_dir
+
 URL    = 'https://www.starrailawards.com/Vote2026/index.html'
-OUTDIR = r'd:\Arbeit\MessageForVote\extracted\page_probe_v2'
-os.makedirs(OUTDIR, exist_ok=True)
+OUTDIR = ensure_dir(os.path.join(EXTRACTED_DIR, 'page_probe_v2'))
 
 TARGETS = ['万敌', '遐蝶', '砂金']
 
