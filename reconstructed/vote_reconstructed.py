@@ -195,13 +195,27 @@ class ProxyManager:
 # Per-attempt timing observed: ~9-11 s navigation + ~5-6 s modal wait.
 # =============================================================================
 CAPTCHA_PROBE_TIMEOUT_MS  = 1500    # [STRONG] short — "未弹" is logged immediately if absent
-# Bumped from the original .exe's 6 s — proxy hops add 4-8 s of latency
-# before captcha JS finishes booting and shows .window-show. Direct
-# connection probe sees it at +2.5 s; through paid-proxy stack +8~12 s
-# is typical, hence 20 s margin.
+# How long to wait after clicking .vote-btn for EITHER the captcha or the
+# confirm modal to appear. The Aliyun captcha SDK takes a while to boot
+# through proxy hops + CDN cold-start; user reports needing 30-60+ s on
+# slow paid proxies. Generous to avoid premature abort that interrupts
+# the human captcha-solving flow.
+CAPTCHA_APPEAR_TIMEOUT_MS = 90_000
+# How long to wait for the post-captcha confirm modal to appear after a
+# successful captcha solve. Page-internal, fast regardless of network.
 CONFIRM_MODAL_TIMEOUT_MS  = 20_000
+# === DEBUG ===
+# How long to wait for the "成功投票给X" success modal AFTER the 确认投票
+# click. Currently set very high so the script halts in-place rather than
+# refreshing the page when the success popup doesn't appear — useful for
+# inspecting the page state. For production, set this back to
+# CONFIRM_MODAL_TIMEOUT_MS (20 s) so a stuck attempt advances the queue.
+SUCCESS_MODAL_TIMEOUT_MS  = 3_600_000   # 1 hour while debugging
 NAVIGATE_TIMEOUT_MS       = 60_000  # bumped from 30 s — slow networks / cold-start browsers
-MAX_RETRIES               = 3       # [HARD]   "retry 1/3" through "retry 3/3"
+# MAX_RETRIES disabled per user request — slow page loads were triggering
+# retries during human captcha-solving, refreshing the page and losing
+# the user's in-progress slider drag. Set back to 3 to re-enable.
+MAX_RETRIES               = 0
 
 
 class Voter:
@@ -250,12 +264,69 @@ class Voter:
         # how to dedupe / persist
         self.on_resolved = on_resolved or (lambda _name, _idx: None)
 
+    async def _save_debug_snapshot(self, page: Page, vote_id: int):
+        """Save screenshot + HTML of the current page to debug_snapshots/.
+
+        Used when something unexpected happens (e.g. success modal fails to
+        appear) so we can inspect the actual page state offline. Best-effort:
+        if the page is already closed/detached, the failures are swallowed.
+        """
+        try:
+            here = os.path.dirname(os.path.abspath(__file__))
+        except Exception:
+            here = os.getcwd()
+        out_dir = os.path.join(here, "debug_snapshots")
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+        except Exception:
+            return
+        stamp = time.strftime("%H%M%S")
+        base = f"vote_{vote_id}_{stamp}"
+        png_ok = html_ok = False
+        try:
+            await page.screenshot(path=os.path.join(out_dir, f"{base}.png"),
+                                  full_page=False, timeout=5_000)
+            png_ok = True
+        except Exception:
+            pass
+        try:
+            html = await page.content()
+            with open(os.path.join(out_dir, f"{base}.html"),
+                      "w", encoding="utf-8") as f:
+                f.write(html)
+            html_ok = True
+        except Exception:
+            pass
+        url = ""
+        try:
+            url = page.url
+        except Exception:
+            pass
+        self.log(f"[INFO] [{vote_id}] 调试快照: png={png_ok} html={html_ok} "
+                 f"url={url[:80]} → debug_snapshots/{base}.*")
+
     async def _new_context(self, browser: Browser, proxy: dict) -> BrowserContext:
         # [STRONG] proxy is per-context (Playwright supports this since 1.29);
         # this is the only way the "page pool" can rotate IPs across votes.
         ctx = await browser.new_context(proxy={"server": proxy["server"]})
         # [HARD] playwright_stealth is bundled → applied per context
         await Stealth().apply_stealth_async(ctx)
+        # ---- speed-up: block resources we don't need for the vote flow ----
+        # Page has ~90 character illustrations from static.appoint.icu, ~5
+        # font files, plus various media — none of which the bot needs.
+        # Captcha images and JS are kept (we still need to solve the slider).
+        async def _route(route):
+            req = route.request
+            rt = req.resource_type
+            url = req.url
+            if rt in ("font", "media"):
+                await route.abort()
+                return
+            if rt == "image" and "static.appoint.icu" in url:
+                await route.abort()
+                return
+            await route.continue_()
+        await ctx.route("**/*", _route)
         return ctx
 
     async def _locate_card(self, page: Page):
@@ -303,16 +374,21 @@ class Voter:
             await card.locator(self.VOTE_BUTTON_SELECTOR).click()
 
             # ---- race captcha vs confirm modal ----
+            # Use the longer CAPTCHA_APPEAR_TIMEOUT_MS here — through slow
+            # proxies, the Aliyun SDK can take 30-60 s to boot and render
+            # the slider. Aborting early kills the user's manual solve.
             captcha_task = asyncio.create_task(
                 page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
-                    state="visible", timeout=CONFIRM_MODAL_TIMEOUT_MS),
+                    state="visible", timeout=CAPTCHA_APPEAR_TIMEOUT_MS),
                 name="captcha")
             modal_task = asyncio.create_task(
                 page.locator(self.CONFIRM_MODAL_SELECTOR).filter(
                     has_text=self.CONFIRM_TITLE_TEXT
                 ).first.wait_for(state="visible",
-                                 timeout=CONFIRM_MODAL_TIMEOUT_MS),
+                                 timeout=CAPTCHA_APPEAR_TIMEOUT_MS),
                 name="modal")
+            self.log(f"[INFO] [{vote_id}] 等待 captcha 或确认模态出现 "
+                     f"(最多 {CAPTCHA_APPEAR_TIMEOUT_MS // 1000} 秒)")
             done, pending = await asyncio.wait(
                 [captcha_task, modal_task],
                 return_when=asyncio.FIRST_COMPLETED,
@@ -384,20 +460,54 @@ class Voter:
             if not clicked:
                 return False
 
-            # success indicator: modal returns to display:none
+            # ---- success modal: "成功投票给X，剩余票数 N" ----
+            # Use a broad text-based locator: any visible element whose text
+            # contains "成功投票" or "剩余票数". Class-based locators were
+            # too narrow and may miss the popup if the page changes class
+            # names between rounds.
+            success_modal = page.get_by_text("成功投票").first
+            self.log(f"[INFO] [{vote_id}] 等待成功提示出现 "
+                     f"(最多 {SUCCESS_MODAL_TIMEOUT_MS // 1000} 秒, 调试期)")
             try:
-                await page.wait_for_function(
-                    """() => {
-                        const m = document.querySelector('.custom-alert-overlay2');
-                        return !m || m.style.display === 'none';
-                    }""",
-                    timeout=CONFIRM_MODAL_TIMEOUT_MS,
-                )
-                self.log(f"[OK] [{vote_id}] 投票成功")
-                return True
-            except Exception:
-                self.log(f"[WARN] [{vote_id}] 模态未关闭（可能投票被服务端拒绝）")
+                await success_modal.wait_for(state="visible",
+                                             timeout=SUCCESS_MODAL_TIMEOUT_MS)
+            except Exception as e:
+                # Surface the ACTUAL error so we can tell timeout vs page-
+                # detached vs network-closed apart, and dump a snapshot of
+                # what was actually on screen at failure time.
+                err_type = type(e).__name__
+                err_msg = str(e).splitlines()[0][:160] if str(e) else ""
+                self.log(f"[WARN] [{vote_id}] 等成功提示失败: {err_type}: {err_msg}")
+                await self._save_debug_snapshot(page, vote_id)
                 return False
+
+            # Log the actual server-returned text — usually contains 剩余票数,
+            # which is useful to know whether the session still has quota.
+            try:
+                text = (await success_modal.inner_text()).strip().replace("\n", " ")
+                self.log(f"[OK] [{vote_id}] {text[:120]}")
+            except Exception:
+                self.log(f"[OK] [{vote_id}] 投票成功")
+
+            # Click 确定 to dismiss the success modal
+            ok_btn = page.locator(
+                ".custom-alert-button", has_text="确定"
+            ).first
+            for label, fn in [
+                ("normal", lambda: ok_btn.click(timeout=5_000)),
+                ("force",  lambda: ok_btn.click(timeout=5_000, force=True)),
+                ("text-fallback",
+                 lambda: page.get_by_text("确定", exact=True).first.click(
+                     timeout=5_000, force=True)),
+            ]:
+                try:
+                    await fn()
+                    self.log(f"[INFO] [{vote_id}] 已关闭成功提示 ({label})")
+                    break
+                except Exception as e:
+                    self.log(f"[WARN] [{vote_id}] 关闭成功提示失败 ({label}): "
+                             f"{type(e).__name__}")
+            return True
         finally:
             try:
                 await page.close()
