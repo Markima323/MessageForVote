@@ -13,10 +13,12 @@ set "VENV=%~dp0reconstructed\.venv"
 set "PY=%VENV%\Scripts\python.exe"
 set "REQ=%~dp0reconstructed\requirements.txt"
 
+set "EXITCODE=0"
+
 if not exist "%REQ%" (
     echo [ERROR] 没找到依赖清单: %REQ%
-    pause
-    exit /b 1
+    set "EXITCODE=1"
+    goto :end
 )
 
 if not exist "%VENV%" (
@@ -41,16 +43,16 @@ if not exist "%VENV%" (
         echo [ERROR] 没找到 Python 3.11 / 3.12 / 3.13
         echo 请去 https://www.python.org/downloads/ 安装其中一个版本。
         echo 验证命令: py -3.11 --version
-        pause
-        exit /b 1
+        set "EXITCODE=1"
+        goto :end
     )
 
     echo [INFO] 用 Python %PYVER% 创建 venv 在 %VENV%
     py %PYVER% -m venv "%VENV%"
     if errorlevel 1 (
         echo [ERROR] 创建 venv 失败
-        pause
-        exit /b 1
+        set "EXITCODE=1"
+        goto :end
     )
 ) else (
     echo [INFO] 复用现有 venv: %VENV%
@@ -68,8 +70,8 @@ echo [INFO] 安装/升级依赖（按 reconstructed\requirements.txt） ...
 "%PY%" -m pip install -r "%REQ%"
 if errorlevel 1 (
     echo [ERROR] 依赖安装失败
-    pause
-    exit /b 1
+    set "EXITCODE=1"
+    goto :end
 )
 
 echo.
@@ -83,4 +85,9 @@ echo.
 echo ================================================
 echo  [DONE] 安装完成。现在可以双击 start.bat 启动。
 echo ================================================
-pause
+
+:end
+echo.
+echo [脚本结束] 按任意键关闭窗口...
+pause >nul
+exit /b %EXITCODE%
