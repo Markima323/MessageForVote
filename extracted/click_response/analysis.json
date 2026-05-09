@@ -1,0 +1,619 @@
+{
+  "url_before": "https://www.starrailawards.com/Vote2026/index.html",
+  "url_after": "https://www.starrailawards.com/Vote2026/index.html",
+  "url_changed": false,
+  "console_messages": [
+    {
+      "type": "warning",
+      "text": "<link rel=preload> uses an unsupported `as` value"
+    },
+    {
+      "type": "warning",
+      "text": "<link rel=preload> uses an unsupported `as` value"
+    },
+    {
+      "type": "log",
+      "text": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 | WebGL 1.0 (OpenGL ES 2.0 Chromium) | WebKit | WebKit WebGL | WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)"
+    },
+    {
+      "type": "warning",
+      "text": "WebGL: INVALID_OPERATION: getAttribLocation: program not linked"
+    },
+    {
+      "type": "warning",
+      "text": "WebGL: INVALID_OPERATION: getAttribLocation: program not linked"
+    },
+    {
+      "type": "warning",
+      "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+    },
+    {
+      "type": "warning",
+      "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+    },
+    {
+      "type": "warning",
+      "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+    },
+    {
+      "type": "warning",
+      "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+    },
+    {
+      "type": "warning",
+      "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+    },
+    {
+      "type": "warning",
+      "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+    },
+    {
+      "type": "warning",
+      "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x38b4011d0e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "log",
+      "text": "[Object, Object, Object, Object, Object, Object, Object, Object] processGroupData"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x38b4011d0e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x38b4011d0e00] GL_INVALID_ENUM: glTexParameteri: Texture filter not recognized."
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x38b4011d0e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x38b4011d0e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    },
+    {
+      "type": "startGroupCollapsed",
+      "text": "console.groupCollapsed"
+    },
+    {
+      "type": "count",
+      "text": "%c%d: 1"
+    },
+    {
+      "type": "debug",
+      "text": "%c%d font-size:0;color:transparent NaN"
+    },
+    {
+      "type": "dir",
+      "text": "%c%d font-size:0;color:transparent Error"
+    },
+    {
+      "type": "dirxml",
+      "text": "%c%d font-size:0;color:transparent Error"
+    },
+    {
+      "type": "info",
+      "text": "%c%d font-size:0;color:transparent NaN"
+    },
+    {
+      "type": "info",
+      "text": "%c%d font-size:0;color:transparent NaN"
+    },
+    {
+      "type": "log",
+      "text": "%c%d font-size:0;color:transparent NaN"
+    },
+    {
+      "type": "table",
+      "text": "%c%d font-size:0;color:transparent Error"
+    },
+    {
+      "type": "trace",
+      "text": "%c%d font-size:0;color:transparent NaN"
+    },
+    {
+      "type": "info",
+      "text": "%c%d font-size:0;color:transparent NaN"
+    },
+    {
+      "type": "endGroup",
+      "text": "console.groupEnd"
+    }
+  ],
+  "dialog_messages": [],
+  "requests_after_click": [
+    {
+      "method": "GET",
+      "url": "https://static.appoint.icu/Railvote/characters/liuying.png",
+      "rt": "image"
+    },
+    {
+      "method": "GET",
+      "url": "https://static.appoint.icu/Railvote/characters/sanyueqi.png",
+      "rt": "image"
+    },
+    {
+      "method": "GET",
+      "url": "https://static.appoint.icu/Railvote/characters/jingyuan.png",
+      "rt": "image"
+    },
+    {
+      "method": "GET",
+      "url": "https://static.appoint.icu/Railvote/characters/feiying.png",
+      "rt": "image"
+    },
+    {
+      "method": "GET",
+      "url": "https://static.appoint.icu/Railvote/characters/yinzhi.png",
+      "rt": "image"
+    },
+    {
+      "method": "POST",
+      "url": "https://2x2pfb.captcha-open.aliyuncs.com/",
+      "rt": "xhr"
+    },
+    {
+      "method": "GET",
+      "url": "https://static-captcha.aliyuncs.com/qst/aigc/online/2/294a99de-3584-47ed-83b5-cca9f9271a99/bitwise_and_result.png",
+      "rt": "xhr"
+    },
+    {
+      "method": "GET",
+      "url": "https://static-captcha.aliyuncs.com/qst/aigc/online/2/294a99de-3584-47ed-83b5-cca9f9271a99/inpainted_with_mask.png",
+      "rt": "xhr"
+    },
+    {
+      "method": "GET",
+      "url": "https://g.alicdn.com/captcha-frontend/dynamicJS/3.25.0/pe.067.d559efaf6e4510b9.js",
+      "rt": "script"
+    },
+    {
+      "method": "GET",
+      "url": "https://g.alicdn.com/captcha-frontend/dynamicJS/3.25.0/main.css",
+      "rt": "stylesheet"
+    },
+    {
+      "method": "POST",
+      "url": "https://2x2pfb.captcha-open.aliyuncs.com/",
+      "rt": "xhr"
+    }
+  ],
+  "before_overlays": [
+    {
+      "cls": "login-modal",
+      "visible": false,
+      "text": "  请选择登录方式  抖音登录 QQ登录 微信登录 稍后登录"
+    },
+    {
+      "cls": "video-overlay",
+      "visible": false,
+      "text": ""
+    },
+    {
+      "cls": "achievement-popup",
+      "visible": false,
+      "text": "成就解锁\n成就描述\n+10 星琼"
+    },
+    {
+      "cls": "section-title-overlay",
+      "visible": true,
+      "text": ""
+    },
+    {
+      "cls": "video-overlay",
+      "visible": false,
+      "text": ""
+    },
+    {
+      "cls": "custom-alert-overlay",
+      "visible": false,
+      "text": ""
+    },
+    {
+      "cls": "custom-alert-box",
+      "visible": true,
+      "text": ""
+    },
+    {
+      "cls": "custom-alert-icon",
+      "visible": true,
+      "text": ""
+    },
+    {
+      "cls": "custom-alert-message",
+      "visible": true,
+      "text": ""
+    },
+    {
+      "cls": "custom-alert-button",
+      "visible": true,
+      "text": ""
+    },
+    {
+      "cls": "rules-modal",
+      "visible": false,
+      "text": " 星星币获取途径 × 获取途径 成就彩蛋 参与投票 在主赛道每个赛段为喜爱的角色投票都可获得 6个 星星币 成就彩蛋 探索战力榜\\一战到底\\评选等玩法，最多可得"
+    },
+    {
+      "cls": "custom-alert-overlay2",
+      "visible": false,
+      "text": "确定投给TA吗？ 组还可以投2票 我再想想 确认投票"
+    },
+    {
+      "cls": "custom-double custom-alert-box",
+      "visible": false,
+      "text": "确定投给TA吗？ 组还可以投2票 我再想想 确认投票"
+    },
+    {
+      "cls": "custom-alert-message custom-double-title",
+      "visible": false,
+      "text": "确定投给TA吗？"
+    },
+    {
+      "cls": "custom-alert-button-2",
+      "visible": false,
+      "text": "我再想想"
+    },
+    {
+      "cls": "custom-alert-button",
+      "visible": false,
+      "text": "确认投票"
+    }
+  ],
+  "after_overlays": [
+    {
+      "cls": "login-modal",
+      "visible": false,
+      "visible_via_style": false,
+      "text": "  请选择登录方式  抖音登录 QQ登录 微信登录 稍后登录",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "cls": "video-overlay",
+      "visible": false,
+      "visible_via_style": true,
+      "text": "",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "cls": "achievement-popup",
+      "visible": false,
+      "visible_via_style": true,
+      "text": "成就解锁\n成就描述\n+10 星琼",
+      "bbox": {
+        "x": 1380,
+        "y": 80,
+        "w": 300,
+        "h": 131.8125
+      }
+    },
+    {
+      "cls": "section-title-overlay",
+      "visible": true,
+      "visible_via_style": true,
+      "text": "",
+      "bbox": {
+        "x": 0,
+        "y": -1207,
+        "w": 1280,
+        "h": 256.03125
+      }
+    },
+    {
+      "cls": "video-overlay",
+      "visible": false,
+      "visible_via_style": true,
+      "text": "",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "cls": "custom-alert-overlay",
+      "visible": false,
+      "visible_via_style": true,
+      "text": "",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      }
+    },
+    {
+      "cls": "custom-alert-box",
+      "visible": true,
+      "visible_via_style": true,
+      "text": "",
+      "bbox": {
+        "x": 472,
+        "y": 735.6875,
+        "w": 336,
+        "h": 168.609375
+      }
+    },
+    {
+      "cls": "custom-alert-icon",
+      "visible": true,
+      "visible_via_style": true,
+      "text": "",
+      "bbox": {
+        "x": 503,
+        "y": 766.6875,
+        "w": 274,
+        "h": 0
+      }
+    },
+    {
+      "cls": "custom-alert-message",
+      "visible": true,
+      "visible_via_style": true,
+      "text": "",
+      "bbox": {
+        "x": 503,
+        "y": 781.6875,
+        "w": 274,
+        "h": 21.609375
+      }
+    },
+    {
+      "cls": "custom-alert-button",
+      "visible": true,
+      "visible_via_style": true,
+      "text": "",
+      "bbox": {
+        "x": 594,
+        "y": 828.296875,
+        "w": 92,
+        "h": 45
+      }
+    },
+    {
+      "cls": "rules-modal",
+      "visible": false,
+      "visible_via_style": false,
+      "text": " 星星币获取途径 × 获取途径 成就彩蛋 参与投票 在主赛道每个赛段为喜爱的角色投票都可获得 6个 星星币 成就彩蛋 探索战力榜\\一战到底\\评选等玩法，最多可得 22个 星星币 1、每个阶段在首页进行年度角色投票可获取星星币 2、在最佳评选里进行评分或发弹幕可获取星星币 3、给自己或者其他人的弹幕点赞可获取星星币 4、游玩银河战力党并提交结果可获取星星币 已知晓，开启对决",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "cls": "custom-alert-overlay2",
+      "visible": false,
+      "visible_via_style": false,
+      "text": "确定投给TA吗？ 组还可以投2票 我再想想 确认投票",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "cls": "custom-double custom-alert-box",
+      "visible": false,
+      "visible_via_style": true,
+      "text": "确定投给TA吗？ 组还可以投2票 我再想想 确认投票",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "cls": "custom-alert-message custom-double-title",
+      "visible": false,
+      "visible_via_style": true,
+      "text": "确定投给TA吗？",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "cls": "custom-alert-button-2",
+      "visible": false,
+      "visible_via_style": true,
+      "text": "我再想想",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "cls": "custom-alert-button",
+      "visible": false,
+      "visible_via_style": true,
+      "text": "确认投票",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    }
+  ],
+  "fixed_position_overlays_after": [
+    {
+      "tag": "div",
+      "cls": "bg-home",
+      "z": "-2",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      },
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "cls": "bg-schedule",
+      "z": "-2",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      },
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "cls": "bg-versus",
+      "z": "-2",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      },
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "cls": "bg-rating",
+      "z": "-2",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      },
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "cls": "bg-tierlist",
+      "z": "-2",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      },
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "cls": "bg-profile",
+      "z": "-2",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      },
+      "text": ""
+    },
+    {
+      "tag": "canvas",
+      "cls": "",
+      "z": "0",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      },
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "cls": "stars-bg",
+      "z": "2",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      },
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "cls": "meteor-container",
+      "z": "10",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      },
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "cls": "achievement-popup",
+      "z": "12",
+      "bbox": {
+        "x": 1380,
+        "y": 80,
+        "w": 300,
+        "h": 131.8125
+      },
+      "text": "成就解锁\n成就描述\n+10 星琼"
+    },
+    {
+      "tag": "div",
+      "cls": "top-nav",
+      "z": "1000",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 116.6875
+      },
+      "text": "年度角色\n活动赛程\n银河战力党\n一战到底\n最佳评选"
+    },
+    {
+      "tag": "div",
+      "cls": "mask-show",
+      "z": "10000000",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 1600
+      },
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "cls": "window-show",
+      "z": "10000001",
+      "bbox": {
+        "x": 474,
+        "y": 510,
+        "w": 332,
+        "h": 420
+      },
+      "text": "请完成安全验证\n\n\n\n拖动滑块还原图片"
+    }
+  ]
+}

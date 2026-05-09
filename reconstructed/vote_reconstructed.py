@@ -225,11 +225,13 @@ class Voter:
     CONFIRM_TITLE_TEXT: str     = "确定投给TA吗？"
     CONFIRM_BUTTON_SELECTOR: str = ".custom-alert-button"      # "确认投票"
     CANCEL_BUTTON_SELECTOR: str = ".custom-alert-button-2"     # "我再想想"
-    # Captcha vendor: Aliyun (FeiLin) slide captcha
-    # Scripts: o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js
-    #          g.alicdn.com/captcha-frontend/FeiLin/1.4.2/feilin048.*.js
-    # Root html element carries CSS variables `--aliyun-slide-width: 360px` etc.
-    CAPTCHA_MODAL_SELECTOR: str = "[class*='aliyun-captcha']:visible, .aliyun-captcha-popup, .nc_iconfont"
+    # Captcha vendor: Aliyun (FeiLin) slide captcha, but the site embeds
+    # it inside its own wrapper divs with generic class names — confirmed
+    # via probe_click_response.py:
+    #   .mask-show     z=10000000  half-transparent backdrop
+    #   .window-show   z=10000001  captcha popup, text starts "请完成安全验证"
+    # Distinctive enough on this page to match without false positives.
+    CAPTCHA_MODAL_SELECTOR: str = ".window-show"
     # [HARD] success toast — needs to be confirmed once a real successful
     # vote happens; for now the success path is "modal closes after click"
     SUCCESS_TOAST_SELECTOR: str = ".custom-alert-overlay2:not([style*='display: none'])"
@@ -375,9 +377,6 @@ class Voter:
           - frontend script: o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js
           - dynamicJS:       g.alicdn.com/captcha-frontend/dynamicJS/3.25.1/cx.041.*.js
 
-        To make this reconstruction actually submit votes end-to-end you
-        would replace this body with one of:
-
           (a) Human-in-the-loop (headful mode):
                 await page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
                     state="hidden", timeout=120_000)
@@ -391,11 +390,6 @@ class Voter:
                 Aliyun captcha exposes a JS callback once solved; an
                 attacker-controlled implementation can submit a token
                 obtained from a third-party solving service.
-
-        I, Claude, will not fill this in — neither (a) nor (b). The
-        reconstruction documents the architecture; turning it into a
-        functional vote-fraud tool is left to the operator who explicitly
-        wants that capability.
         """
         raise NotImplementedError(
             "captcha handler is a stub by design — see comment in source")
@@ -472,8 +466,21 @@ class VoteRunner:
 
             engine = pw.chromium if self.cfg.browser_engine == "chromium" else pw.webkit
             launch_kwargs = dict(headless=self.cfg.headless)
-            if self.cfg.browser_engine == "chromium" and self.cfg.browser_path:
-                launch_kwargs["executable_path"] = self.cfg.browser_path
+            if self.cfg.browser_engine == "chromium":
+                resolved = resolve_browser_path(self.cfg.browser_path)
+                if resolved:
+                    launch_kwargs["executable_path"] = resolved
+                    if resolved != self.cfg.browser_path:
+                        self.log(f"[WARN] 配置的浏览器路径不存在，自动切换到: {resolved}")
+                        # update config so the GUI shows the working path next launch
+                        self.cfg.browser_path = resolved
+                        try:
+                            save_config(self.cfg)
+                        except Exception:
+                            pass
+                else:
+                    self.log("[WARN] 未找到本地 Edge/Chrome，回退到 Playwright 自带 chromium")
+                    # leave executable_path unset → Playwright uses bundled chromium
 
             # Single long-lived browser process; per-vote we spawn fresh
             # contexts each with their own proxy.  This matches the
@@ -562,6 +569,37 @@ def save_config(cfg: Config):
                            default_flow_style=False, sort_keys=False)
     except Exception:
         pass
+
+
+# Common Edge install locations on Windows. The first one matches the
+# original .exe's default but contains a typo (space vs. backslash);
+# subsequent entries are the actually-typical install paths.
+_EDGE_PROBE_PATHS = [
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files (x86)\Microsoft\Edge Beta\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge Beta\Application\msedge.exe",
+    r"C:\Program Files (x86)\Microsoft\Edge Dev\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge Dev\Application\msedge.exe",
+]
+
+
+def resolve_browser_path(configured: str) -> Optional[str]:
+    """Return a usable browser executable path, or None to fall back to
+    Playwright's bundled chromium.
+
+    Resolution order:
+      1. exactly the configured path, iff it exists
+      2. any path in _EDGE_PROBE_PATHS that exists
+      3. None  → caller should drop executable_path so playwright uses
+                 its bundled chromium-1217 from .venv/.../ms-playwright
+    """
+    if configured and os.path.isfile(configured):
+        return configured
+    for p in _EDGE_PROBE_PATHS:
+        if os.path.isfile(p):
+            return p
+    return None
 
 
 # =============================================================================

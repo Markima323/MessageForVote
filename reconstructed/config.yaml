@@ -1,4 +1,4 @@
-proxy_api_url: ''
+proxy_api_url: http://api.shenlongproxy.com/ip?cty=&c=30&pt=1&ft=txt&pat=\r\n&rep=1&key=1879eb7e&ts=5
 proxy_protocol: http
 target_character_name: 砂金
 target_button_index: 13
@@ -8,5 +8,5 @@ browser_engine: chromium
 browser_path: C:\Program Files (x86)\Microsoft Edge\Application\msedge.exe
 headless: true
 last_resolved_name: 砂金
-last_resolved_index: 13
-last_resolved_at: '2026-05-09 11:30:00'
+last_resolved_index: 10
+last_resolved_at: '2026-05-09 20:35:22'
