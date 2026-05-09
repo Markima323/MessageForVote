@@ -1,6 +1,6 @@
 {
   "url": "https://www.starrailawards.com/Vote2026/index.html",
-  "captured_at": "2026-05-09 21:24:19",
+  "captured_at": "2026-05-09 22:11:50",
   "count": 40,
   "entries": [
     {
@@ -155,18 +155,18 @@
     },
     {
       "index": 30,
+      "name": "米沙",
+      "image_key": "misha"
+    },
+    {
+      "index": 31,
       "name": "不死途",
       "image_key": "busitu"
     },
     {
-      "index": 31,
+      "index": 32,
       "name": "黑塔",
       "image_key": "heita"
-    },
-    {
-      "index": 32,
-      "name": "米沙",
-      "image_key": "misha"
     },
     {
       "index": 33,

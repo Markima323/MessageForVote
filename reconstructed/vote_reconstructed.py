@@ -33,6 +33,7 @@ This file fuses them since the boundary is opaque without dynamic data.
 # pyreadline3, pythonnet, sniffio, sortedcontainers, trio,
 # typing_extensions, win32con, win32evtlogutil, winerror, yaml.
 # =============================================================================
+import ctypes
 import os
 import sys
 import json
@@ -74,7 +75,7 @@ class Config:
     proxy_protocol: str = "http"                # GUI: 代理协议 (combobox)
     target_character_name: str = ""             # GUI: 目标角色名 (如 白厄)
     target_button_index: int = 0                # GUI: 或 按钮序号 (0-70)
-    concurrency: int = 5                        # GUI: 并发数
+    concurrency: int = 6                        # GUI: 并发数 (3×2 平铺时正好)
     total_votes: int = 200                      # GUI: 总投票次数
     browser_engine: str = "chromium"            # GUI: 浏览器引擎 (combobox: chromium / webkit)
     browser_path: str = (
@@ -88,6 +89,13 @@ class Config:
     last_resolved_name: str = ""
     last_resolved_index: int = -1
     last_resolved_at: str = ""
+
+    # Manual captcha popup offset (px). Center is (0, 0); positive x moves
+    # right, positive y moves down. Provided as sliders in the GUI so the
+    # user can tweak when CSS centering doesn't fully win against the
+    # vendor's internal positioning.
+    captcha_offset_x: int = 0
+    captcha_offset_y: int = 0
 
     @staticmethod
     def candidate_count() -> int:
@@ -196,26 +204,118 @@ class ProxyManager:
 # =============================================================================
 CAPTCHA_PROBE_TIMEOUT_MS  = 1500    # [STRONG] short — "未弹" is logged immediately if absent
 # How long to wait after clicking .vote-btn for EITHER the captcha or the
-# confirm modal to appear. The Aliyun captcha SDK takes a while to boot
-# through proxy hops + CDN cold-start; user reports needing 30-60+ s on
-# slow paid proxies. Generous to avoid premature abort that interrupts
-# the human captcha-solving flow.
-CAPTCHA_APPEAR_TIMEOUT_MS = 90_000
+# confirm modal to appear. With 6 concurrent windows + slow paid proxies
+# the SDK boot can serialize unpredictably, so we give 5 minutes of slack.
+CAPTCHA_APPEAR_TIMEOUT_MS = 300_000   # 5 minutes
 # How long to wait for the post-captcha confirm modal to appear after a
 # successful captcha solve. Page-internal, fast regardless of network.
 CONFIRM_MODAL_TIMEOUT_MS  = 20_000
-# === DEBUG ===
 # How long to wait for the "成功投票给X" success modal AFTER the 确认投票
-# click. Currently set very high so the script halts in-place rather than
-# refreshing the page when the success popup doesn't appear — useful for
-# inspecting the page state. For production, set this back to
-# CONFIRM_MODAL_TIMEOUT_MS (20 s) so a stuck attempt advances the queue.
-SUCCESS_MODAL_TIMEOUT_MS  = 3_600_000   # 1 hour while debugging
+# click. Set to a very large value (e.g. 3_600_000 = 1 hour) when
+# debugging so the script halts and you can inspect the page; otherwise
+# the same as CONFIRM_MODAL_TIMEOUT_MS so a stuck attempt advances.
+SUCCESS_MODAL_TIMEOUT_MS  = CONFIRM_MODAL_TIMEOUT_MS
 NAVIGATE_TIMEOUT_MS       = 60_000  # bumped from 30 s — slow networks / cold-start browsers
 # MAX_RETRIES disabled per user request — slow page loads were triggering
 # retries during human captcha-solving, refreshing the page and losing
 # the user's in-progress slider drag. Set back to 3 to re-enable.
 MAX_RETRIES               = 0
+
+# Tile geometry for headed multi-window mode. Default 3 columns × 2 rows
+# means concurrency=6 fills the screen exactly with non-overlapping tiles.
+# Slot index `s` maps to (col=s%cols, row=(s//cols)%rows).
+WINDOW_GRID_COLS = 3
+WINDOW_GRID_ROWS = 2
+
+
+def _get_screen_size() -> tuple:
+    """Return (width, height) of the primary monitor in **CSS pixels (DIPs)**.
+
+    Chrome DevTools Protocol's setWindowBounds expects DIPs, not physical
+    pixels. On a HiDPI screen with 200% scaling, a 2560×1600 physical
+    screen is 1280×800 DIPs — using physical numbers would push windows
+    off-screen. We detect DPI scaling and divide.
+    Falls back to 1920×1080 if any Win32 call fails.
+    """
+    try:
+        user32 = ctypes.windll.user32
+        gdi32 = ctypes.windll.gdi32
+        try:
+            user32.SetProcessDPIAware()
+        except Exception:
+            pass
+        phy_w = user32.GetSystemMetrics(0)
+        phy_h = user32.GetSystemMetrics(1)
+        # DPI scaling factor: 96 = 100%, 144 = 150%, 192 = 200%, etc.
+        dc = user32.GetDC(0)
+        try:
+            LOGPIXELSX = 88
+            dpi = gdi32.GetDeviceCaps(dc, LOGPIXELSX) or 96
+        finally:
+            user32.ReleaseDC(0, dc)
+        scale = dpi / 96.0
+        return int(phy_w / scale), int(phy_h / scale)
+    except Exception:
+        return 1920, 1080
+
+
+def _tile_for_slot(slot: int, screen_w: int, screen_h: int,
+                   cols: int = WINDOW_GRID_COLS,
+                   rows: int = WINDOW_GRID_ROWS) -> tuple:
+    """Return (x, y, w, h) pixel coords for a slot in a cols × rows grid.
+    Slots above cols*rows wrap (so concurrency > 6 still gets a tile)."""
+    tile_w = screen_w // cols
+    tile_h = screen_h // rows
+    col = slot % cols
+    row = (slot // cols) % rows
+    return col * tile_w, row * tile_h, tile_w, tile_h
+
+
+def _make_captcha_init_script(offset_x: int, offset_y: int) -> str:
+    """Build an init script that pins .window-show to viewport center plus
+    a manual (offset_x, offset_y) pixel offset. Inline-style + !important
+    is the highest CSS specificity, so even the vendor's own inline styles
+    lose. MutationObserver + interval re-apply in case the SDK overrides."""
+    return r"""
+(() => {
+    const OFFSET_X = %d;
+    const OFFSET_Y = %d;
+    function forceCenter(el) {
+        if (!el) return;
+        const s = el.style;
+        s.setProperty('position', 'fixed', 'important');
+        s.setProperty('left', `calc(50%% + ${OFFSET_X}px)`, 'important');
+        s.setProperty('top',  `calc(50%% + ${OFFSET_Y}px)`, 'important');
+        s.setProperty('right', 'auto', 'important');
+        s.setProperty('bottom', 'auto', 'important');
+        s.setProperty('transform', 'translate(-50%%, -50%%)', 'important');
+        s.setProperty('margin', '0', 'important');
+        s.setProperty('z-index', '2147483646', 'important');
+    }
+    function forceFullViewport(el) {
+        if (!el) return;
+        const s = el.style;
+        s.setProperty('position', 'fixed', 'important');
+        s.setProperty('left', '0', 'important');
+        s.setProperty('top', '0', 'important');
+        s.setProperty('width', '100vw', 'important');
+        s.setProperty('height', '100vh', 'important');
+        s.setProperty('z-index', '2147483645', 'important');
+    }
+    function fixAll() {
+        document.querySelectorAll('.window-show').forEach(forceCenter);
+        document.querySelectorAll('.mask-show').forEach(forceFullViewport);
+    }
+    fixAll();
+    try {
+        new MutationObserver(fixAll).observe(document.documentElement, {
+            childList: true, subtree: true,
+            attributes: true, attributeFilter: ['style', 'class'],
+        });
+    } catch (e) { /* observer may fail on early frames */ }
+    setInterval(fixAll, 300);
+})();
+""" % (offset_x, offset_y)
 
 
 class Voter:
@@ -305,12 +405,62 @@ class Voter:
         self.log(f"[INFO] [{vote_id}] 调试快照: png={png_ok} html={html_ok} "
                  f"url={url[:80]} → debug_snapshots/{base}.*")
 
+    async def _tile_window_cdp(self, ctx: BrowserContext, page: Page,
+                                slot: int, vote_id: int):
+        """Position the page's browser window into a grid slot.
+
+        Uses Chrome DevTools Protocol because window.moveTo / resizeTo
+        are sandbox-blocked on non-popup windows. CDP runs at the
+        browser level and bypasses that restriction.
+        """
+        sw, sh = _get_screen_size()
+        x, y, w, h = _tile_for_slot(slot, sw, sh)
+        try:
+            cdp = await ctx.new_cdp_session(page)
+            try:
+                target = await cdp.send("Browser.getWindowForTarget")
+                wid = target.get("windowId")
+                if wid is None:
+                    return
+                # Some Chrome states (e.g. maximized) refuse direct bounds
+                # change — first force "normal" state, then set bounds.
+                try:
+                    await cdp.send("Browser.setWindowBounds", {
+                        "windowId": wid,
+                        "bounds": {"windowState": "normal"},
+                    })
+                except Exception:
+                    pass
+                await cdp.send("Browser.setWindowBounds", {
+                    "windowId": wid,
+                    "bounds": {"left": x, "top": y, "width": w, "height": h},
+                })
+            finally:
+                try:
+                    await cdp.detach()
+                except Exception:
+                    pass
+        except Exception as e:
+            self.log(f"[INFO] [{vote_id}] 窗口排布失败 (slot {slot}): "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+
     async def _new_context(self, browser: Browser, proxy: dict) -> BrowserContext:
         # [STRONG] proxy is per-context (Playwright supports this since 1.29);
         # this is the only way the "page pool" can rotate IPs across votes.
         ctx = await browser.new_context(proxy={"server": proxy["server"]})
         # [HARD] playwright_stealth is bundled → applied per context
         await Stealth().apply_stealth_async(ctx)
+
+        # ---- inject CSS that forces captcha & modal popups to center of
+        # viewport. The Aliyun captcha (.window-show) and the page's own
+        # alert overlays use absolute pixel positioning calibrated to a
+        # large viewport; on small tiled windows they end up outside the
+        # visible area. CSS overrides are inert when popups aren't shown,
+        # active automatically when they are — so this stays correct as
+        # the window resizes (resolution / DPI changes carry over too).
+        await ctx.add_init_script(_make_captcha_init_script(
+            self.cfg.captcha_offset_x, self.cfg.captcha_offset_y))
+
         # ---- speed-up: block resources we don't need for the vote flow ----
         # Page has ~90 character illustrations from static.appoint.icu, ~5
         # font files, plus various media — none of which the bot needs.
@@ -355,7 +505,8 @@ class Voter:
         return page.locator(self.CANDIDATE_CARD_SELECTOR).nth(
             self.cfg.target_button_index)
 
-    async def _attempt(self, ctx: BrowserContext, vote_id: int) -> bool:
+    async def _attempt(self, ctx: BrowserContext, vote_id: int,
+                       slot: int = 0) -> bool:
         """One vote attempt. Returns True iff the confirm modal closed
         successfully (which the page treats as a successful vote).
 
@@ -366,6 +517,13 @@ class Voter:
         slow + modal opened after the probe timeout. This races the two.
         """
         page = await ctx.new_page()
+        # Tile the window into a slot so multiple concurrent attempts are
+        # visible side-by-side (3 cols × 2 rows for concurrency=6).
+        # window.moveTo / window.resizeTo are blocked by Chrome on regular
+        # windows, so we use CDP (Browser.setWindowBounds) instead — that
+        # is the browser-level API and isn't subject to JS sandbox.
+        if not self.cfg.headless:
+            await self._tile_window_cdp(ctx, page, slot, vote_id)
         try:
             await page.goto(self.VOTE_PAGE_URL, wait_until="domcontentloaded",
                             timeout=NAVIGATE_TIMEOUT_MS)
@@ -527,7 +685,8 @@ class Voter:
         self.log("[OK] 滑块已通过，继续投票")
 
 
-    async def vote_with_retries(self, browser: Browser, vote_id: int) -> bool:
+    async def vote_with_retries(self, browser: Browser, vote_id: int,
+                                 slot: int = 0) -> bool:
         """[HARD] full retry envelope for one vote attempt."""
         for retry in range(MAX_RETRIES + 1):
             if retry > 0:
@@ -539,7 +698,7 @@ class Voter:
             ip_port = proxy["_id"]
             ctx = await self._new_context(browser, proxy)
             try:
-                ok = await self._attempt(ctx, vote_id)
+                ok = await self._attempt(ctx, vote_id, slot=slot)
                 if ok:
                     return True
                 # [HARD] failed proxy gets blacklisted (observed pool drop)
@@ -638,10 +797,12 @@ class VoteRunner:
                 vote_id = 0
                 while vote_id < total and not self._stop.is_set():
                     batch_end = min(vote_id + concurrency, total)
+                    # slot index inside this batch → tile position on screen
                     self._current_tasks = [
-                        asyncio.create_task(voter.vote_with_retries(browser, vid),
-                                            name=f"vote-{vid}")
-                        for vid in range(vote_id, batch_end)
+                        asyncio.create_task(
+                            voter.vote_with_retries(browser, vid, slot=slot),
+                            name=f"vote-{vid}")
+                        for slot, vid in enumerate(range(vote_id, batch_end))
                     ]
                     results = await asyncio.gather(
                         *self._current_tasks, return_exceptions=True)
@@ -764,6 +925,11 @@ class App(tk.Tk):
         # Edge, Brave, and bundled chromium-1217 all as the same engine.
         self.var_browser     = tk.StringVar(value=cfg.browser_path)
         self.var_headless    = tk.BooleanVar(value=cfg.headless)
+        self.var_captcha_x   = tk.IntVar(value=cfg.captcha_offset_x)
+        self.var_captcha_y   = tk.IntVar(value=cfg.captcha_offset_y)
+        self.var_captcha_hint = tk.StringVar(
+            value=self._format_captcha_hint(cfg.captcha_offset_x,
+                                            cfg.captcha_offset_y))
         self.var_status      = tk.StringVar(value="就绪")
 
         # persistent last-resolved cache (not surfaced as form fields, so
@@ -785,6 +951,9 @@ class App(tk.Tk):
             return "提示：第一次跑成功后，这里会显示上次该角色的实际序号。"
         return (f"上次：{self._last_resolved_name} → 序号 "
                 f"{self._last_resolved_index}（验证于 {self._last_resolved_at}）")
+
+    def _format_captcha_hint(self, x: int, y: int) -> str:
+        return f"验证码偏移: X = {x:+d} px, Y = {y:+d} px (0 = 视口正中心)"
 
     def _build(self):
         # config frame [HARD]: titled "配置"
@@ -819,10 +988,31 @@ class App(tk.Tk):
                         variable=self.var_headless).grid(
             row=len(rows), column=1, sticky="w", padx=8, pady=3)
 
-        # last-resolved hint (small grey text under the headless checkbox)
+        # captcha-offset sliders: dial in the popup position by hand when
+        # CSS centering doesn't fully win against the vendor's SDK.
+        ttk.Label(cfg_frame, text="验证码 X 偏移 (px):").grid(
+            row=len(rows) + 1, column=0, sticky="w", padx=8, pady=3)
+        ttk.Scale(cfg_frame, from_=-500, to=500, orient="horizontal",
+                  variable=self.var_captcha_x,
+                  command=lambda _v: self._on_captcha_offset_change()).grid(
+            row=len(rows) + 1, column=1, sticky="we", padx=8)
+
+        ttk.Label(cfg_frame, text="验证码 Y 偏移 (px):").grid(
+            row=len(rows) + 2, column=0, sticky="w", padx=8, pady=3)
+        ttk.Scale(cfg_frame, from_=-300, to=300, orient="horizontal",
+                  variable=self.var_captcha_y,
+                  command=lambda _v: self._on_captcha_offset_change()).grid(
+            row=len(rows) + 2, column=1, sticky="we", padx=8)
+
+        ttk.Label(cfg_frame, textvariable=self.var_captcha_hint,
+                  foreground="#888").grid(
+            row=len(rows) + 3, column=0, columnspan=2, sticky="w",
+            padx=8, pady=(0, 4))
+
+        # last-resolved hint (small grey text under the captcha sliders)
         ttk.Label(cfg_frame, textvariable=self.var_resolved_hint,
                   foreground="#888").grid(
-            row=len(rows) + 1, column=0, columnspan=2, sticky="w",
+            row=len(rows) + 4, column=0, columnspan=2, sticky="w",
             padx=8, pady=(4, 6))
 
         # button row [HARD]: 开始 / 停止 / 就绪 status label
@@ -859,7 +1049,32 @@ class App(tk.Tk):
             last_resolved_name=self._last_resolved_name,
             last_resolved_index=self._last_resolved_index,
             last_resolved_at=self._last_resolved_at,
+            captcha_offset_x=int(self.var_captcha_x.get()),
+            captcha_offset_y=int(self.var_captcha_y.get()),
         )
+
+    def _on_captcha_offset_change(self):
+        """Slider callback. Updates GUI hint, persists offsets, and pushes
+        them to a running runner so future vote attempts pick up the new
+        values without restart. Currently-displayed captchas are not
+        repositioned mid-flight (Aliyun's iframe content is opaque to us)."""
+        x = int(self.var_captcha_x.get())
+        y = int(self.var_captcha_y.get())
+        self.var_captcha_hint.set(self._format_captcha_hint(x, y))
+        # update the running runner's config in-place; voter shares the
+        # same reference, so the next _new_context picks it up
+        if self.runner is not None:
+            try:
+                self.runner.cfg.captcha_offset_x = x
+                self.runner.cfg.captcha_offset_y = y
+            except Exception:
+                pass
+        # debounced disk save — Scale fires this many times per second,
+        # but Python's open()/yaml.safe_dump on a tiny file is cheap
+        try:
+            save_config(self._collect_config())
+        except Exception:
+            pass
 
     def _on_card_resolved(self, name: str, idx: int):
         """Called once per session per name when Voter locates the card.
