@@ -82,6 +82,13 @@ class Config:
     )                                           # GUI: 浏览器路径 (仅 chromium 用)
     headless: bool = True                       # GUI: 无头模式（生产推荐）
 
+    # Last-known mapping (populated after a successful card locate).
+    # Used only as a UX hint — the live page is still the source of truth
+    # at click-time (index might change between rounds).
+    last_resolved_name: str = ""
+    last_resolved_index: int = -1
+    last_resolved_at: str = ""
+
     @staticmethod
     def candidate_count() -> int:
         # [HARD] GUI label says "0-70" → 71 candidates indexed 0..70
@@ -203,8 +210,11 @@ class Voter:
     """
 
     # [HARD] all selectors below confirmed by live DOM probe of
-    # https://www.starrailawards.com (probe_page.py output).
-    VOTE_PAGE_URL: str          = "https://www.starrailawards.com"
+    # https://www.starrailawards.com/Vote2026/index.html (probe_page_v2.py output).
+    # NOTE: site uses round-based phases. Earlier root path "/" had 71
+    # candidates; current /Vote2026/index.html has 40. URL must be updated
+    # whenever the round advances. Name-based locator is round-invariant.
+    VOTE_PAGE_URL: str          = "https://www.starrailawards.com/Vote2026/index.html"
     # 71 .character-card elements; each contains .character-name + .vote-btn
     CANDIDATE_CARD_SELECTOR: str = ".character-card"
     CHARACTER_NAME_SELECTOR: str = ".character-name"
@@ -225,10 +235,14 @@ class Voter:
     SUCCESS_TOAST_SELECTOR: str = ".custom-alert-overlay2:not([style*='display: none'])"
 
     def __init__(self, cfg: Config, proxies: ProxyManager,
-                 log: Callable[[str], None]):
+                 log: Callable[[str], None],
+                 on_resolved: Optional[Callable[[str, int], None]] = None):
         self.cfg = cfg
         self.proxies = proxies
         self.log = log
+        # callback fires once per successful card locate; receiver decides
+        # how to dedupe / persist
+        self.on_resolved = on_resolved or (lambda _name, _idx: None)
 
     async def _new_context(self, browser: Browser, proxy: dict) -> BrowserContext:
         # [STRONG] proxy is per-context (Playwright supports this since 1.29);
@@ -239,12 +253,28 @@ class Voter:
         return ctx
 
     async def _locate_card(self, page: Page):
-        """[HARD] return the .character-card matching the target name OR index."""
+        """[HARD] return the .character-card matching the target name OR index.
+
+        Side effect: when match is by name, also resolves the actual DOM
+        index of the matched card and fires self.on_resolved(name, idx).
+        The runner persists this for next-launch UX; it is NOT used at
+        click-time (live DOM is always re-queried — see Q2 caching note).
+        """
         name = (self.cfg.target_character_name or "").strip()
         if name:
-            # match the card whose .character-name has the exact text
-            return page.locator(self.CANDIDATE_CARD_SELECTOR,
+            card = page.locator(self.CANDIDATE_CARD_SELECTOR,
                                 has_text=name).first
+            try:
+                idx = await card.evaluate(
+                    "el => Array.from("
+                    "document.querySelectorAll('.character-card')"
+                    ").indexOf(el)"
+                )
+                if isinstance(idx, int) and idx >= 0:
+                    self.on_resolved(name, idx)
+            except Exception:
+                pass
+            return card
         return page.locator(self.CANDIDATE_CARD_SELECTOR).nth(
             self.cfg.target_button_index)
 
@@ -409,10 +439,12 @@ class Voter:
 # =============================================================================
 class VoteRunner:
     def __init__(self, cfg: Config, log: Callable[[str], None],
-                 status: Callable[[str], None]):
+                 status: Callable[[str], None],
+                 on_resolved: Optional[Callable[[str, int], None]] = None):
         self.cfg = cfg
         self.log = log
         self.set_status = status
+        self.on_resolved = on_resolved
         self._stop = threading.Event()
         self._success = 0
         self._lock = threading.Lock()
@@ -457,7 +489,7 @@ class VoteRunner:
                     await ctx.close()
                 self.log(f"[INFO] page pool 就绪：{self.cfg.concurrency} 个 context")
 
-                voter = Voter(self.cfg, proxies, self.log)
+                voter = Voter(self.cfg, proxies, self.log, self.on_resolved)
                 total = self.cfg.total_votes
                 concurrency = self.cfg.concurrency
 
@@ -556,10 +588,25 @@ class App(tk.Tk):
         self.var_headless    = tk.BooleanVar(value=cfg.headless)
         self.var_status      = tk.StringVar(value="就绪")
 
+        # persistent last-resolved cache (not surfaced as form fields, so
+        # we hold them in self and weave them back into _collect_config)
+        self._last_resolved_name  = cfg.last_resolved_name
+        self._last_resolved_index = cfg.last_resolved_index
+        self._last_resolved_at    = cfg.last_resolved_at
+        self._fired_for_session: set = set()
+        self.var_resolved_hint = tk.StringVar(
+            value=self._format_resolved_hint())
+
         self._build()
         self.runner: Optional[VoteRunner] = None
         # persist config on close
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _format_resolved_hint(self) -> str:
+        if not self._last_resolved_name or self._last_resolved_index < 0:
+            return "提示：第一次跑成功后，这里会显示上次该角色的实际序号。"
+        return (f"上次：{self._last_resolved_name} → 序号 "
+                f"{self._last_resolved_index}（验证于 {self._last_resolved_at}）")
 
     def _build(self):
         # config frame [HARD]: titled "配置"
@@ -595,6 +642,12 @@ class App(tk.Tk):
                         variable=self.var_headless).grid(
             row=len(rows), column=1, sticky="w", padx=8, pady=3)
 
+        # last-resolved hint (small grey text under the headless checkbox)
+        ttk.Label(cfg_frame, textvariable=self.var_resolved_hint,
+                  foreground="#888").grid(
+            row=len(rows) + 1, column=0, columnspan=2, sticky="w",
+            padx=8, pady=(4, 6))
+
         # button row [HARD]: 开始 / 停止 / 就绪 status label
         btn_row = ttk.Frame(self)
         btn_row.pack(fill="x", padx=10)
@@ -626,7 +679,33 @@ class App(tk.Tk):
             browser_engine=self.var_engine.get(),
             browser_path=self.var_browser.get(),
             headless=bool(self.var_headless.get()),
+            last_resolved_name=self._last_resolved_name,
+            last_resolved_index=self._last_resolved_index,
+            last_resolved_at=self._last_resolved_at,
         )
+
+    def _on_card_resolved(self, name: str, idx: int):
+        """Called once per session per name when Voter locates the card.
+
+        Updates the in-memory cache + the GUI hint label, and persists to
+        config.yaml so the info survives across launches. Dedup'd within
+        the session so a 200-vote run only saves once.
+        """
+        if name in self._fired_for_session:
+            return
+        self._fired_for_session.add(name)
+        self._last_resolved_name  = name
+        self._last_resolved_index = idx
+        self._last_resolved_at    = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        def _ui():
+            self.var_resolved_hint.set(self._format_resolved_hint())
+        self.after(0, _ui)
+        self.log(f"[OK] 已锁定 '{name}' 在 DOM 序号 {idx}")
+        try:
+            save_config(self._collect_config())
+        except Exception:
+            pass
 
     def log(self, msg: str):
         # [HARD] runtime log format: "HH:MM:SS [LEVEL] [vote_id] message"
@@ -655,7 +734,15 @@ class App(tk.Tk):
 
     def on_start(self):
         cfg = self._collect_config()
-        self.runner = VoteRunner(cfg, self.log, self.set_status)
+        # save current form state so even a hard-kill won't lose it
+        try:
+            save_config(cfg)
+        except Exception:
+            pass
+        # reset the per-session dedup so a re-run can re-resolve
+        self._fired_for_session.clear()
+        self.runner = VoteRunner(cfg, self.log, self.set_status,
+                                 on_resolved=self._on_card_resolved)
         self.runner.run_in_thread()
         self.btn_start.configure(state="disabled")
         self.btn_stop.configure(state="normal")

@@ -1,0 +1,12 @@
+proxy_api_url: ''
+proxy_protocol: http
+target_character_name: 砂金
+target_button_index: 13
+concurrency: 5
+total_votes: 200
+browser_engine: chromium
+browser_path: C:\Program Files (x86)\Microsoft Edge\Application\msedge.exe
+headless: true
+last_resolved_name: 砂金
+last_resolved_index: 13
+last_resolved_at: '2026-05-09 11:30:00'

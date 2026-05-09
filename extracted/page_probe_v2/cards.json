@@ -1,0 +1,362 @@
+[
+  {
+    "domIndex": 0,
+    "name": "缇宝",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/tibao.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 1,
+    "name": "罗刹",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/luocha.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 2,
+    "name": "万敌",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/wandi.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 3,
+    "name": "遐蝶",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/xiadie.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 4,
+    "name": "白厄",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/baie.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 5,
+    "name": "卡芙卡",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/kafuka.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 6,
+    "name": "阿格莱雅",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/agelaiya.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 7,
+    "name": "知更鸟",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/zhigengniao.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 8,
+    "name": "爻光",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/yaoguang.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 9,
+    "name": "丹恒",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/danheng.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 10,
+    "name": "花火",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/huahuo.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 11,
+    "name": "藿藿",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/huohuo.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 12,
+    "name": "风堇",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/fengjin.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 13,
+    "name": "砂金",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/shajin.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 14,
+    "name": "那刻夏",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/nakexia.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 15,
+    "name": "银狼",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/yinlang.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 16,
+    "name": "大丽花",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/dalihua.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 17,
+    "name": "真理医生",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/zhenliyisheng.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 18,
+    "name": "镜流",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/jingliu.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 19,
+    "name": "昔涟",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/xilian.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 20,
+    "name": "刻律德菈",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/kelvdela.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 21,
+    "name": "阮·梅",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/ruanmei.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 22,
+    "name": "托帕",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/tuopa.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 23,
+    "name": "乱破",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/luanpo.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 24,
+    "name": "星期日",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/xingqiri.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 25,
+    "name": "椒丘",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/jiaoqiu.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 26,
+    "name": "黄泉",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/huangquan.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 27,
+    "name": "青雀",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/qingque.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 28,
+    "name": "刃",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/ren.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 29,
+    "name": "海瑟音",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/haiseyin.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 30,
+    "name": "米沙",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/misha.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 31,
+    "name": "不死途",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/busitu.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 32,
+    "name": "黑塔",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/heita.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 33,
+    "name": "波提欧",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/botiou.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 34,
+    "name": "飞霄",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/feixiao.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 35,
+    "name": "绯英",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/feiying.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 36,
+    "name": "流萤",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/liuying.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 37,
+    "name": "景元",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/jingyuan.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 38,
+    "name": "三月七",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/sanyueqi.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  },
+  {
+    "domIndex": 39,
+    "name": "银枝",
+    "imgSrc": "https://static.appoint.icu/Railvote/characters/yinzhi.png",
+    "dataset": {},
+    "attrs": {
+      "class": "character-card"
+    }
+  }
+]
