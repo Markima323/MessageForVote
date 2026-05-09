@@ -1,17 +1,17 @@
 {
   "url": "https://www.starrailawards.com/Vote2026/index.html",
-  "captured_at": "2026-05-09 10:59:58",
+  "captured_at": "2026-05-09 21:24:19",
   "count": 40,
   "entries": [
     {
       "index": 0,
-      "name": "缇宝",
-      "image_key": "tibao"
+      "name": "白厄",
+      "image_key": "baie"
     },
     {
       "index": 1,
-      "name": "罗刹",
-      "image_key": "luocha"
+      "name": "遐蝶",
+      "image_key": "xiadie"
     },
     {
       "index": 2,
@@ -20,13 +20,13 @@
     },
     {
       "index": 3,
-      "name": "遐蝶",
-      "image_key": "xiadie"
+      "name": "缇宝",
+      "image_key": "tibao"
     },
     {
       "index": 4,
-      "name": "白厄",
-      "image_key": "baie"
+      "name": "罗刹",
+      "image_key": "luocha"
     },
     {
       "index": 5,
@@ -35,8 +35,8 @@
     },
     {
       "index": 6,
-      "name": "阿格莱雅",
-      "image_key": "agelaiya"
+      "name": "丹恒",
+      "image_key": "danheng"
     },
     {
       "index": 7,
@@ -50,18 +50,18 @@
     },
     {
       "index": 9,
-      "name": "丹恒",
-      "image_key": "danheng"
+      "name": "阿格莱雅",
+      "image_key": "agelaiya"
     },
     {
       "index": 10,
-      "name": "花火",
-      "image_key": "huahuo"
+      "name": "砂金",
+      "image_key": "shajin"
     },
     {
       "index": 11,
-      "name": "藿藿",
-      "image_key": "huohuo"
+      "name": "那刻夏",
+      "image_key": "nakexia"
     },
     {
       "index": 12,
@@ -70,13 +70,13 @@
     },
     {
       "index": 13,
-      "name": "砂金",
-      "image_key": "shajin"
+      "name": "花火",
+      "image_key": "huahuo"
     },
     {
       "index": 14,
-      "name": "那刻夏",
-      "image_key": "nakexia"
+      "name": "藿藿",
+      "image_key": "huohuo"
     },
     {
       "index": 15,
@@ -85,8 +85,8 @@
     },
     {
       "index": 16,
-      "name": "大丽花",
-      "image_key": "dalihua"
+      "name": "昔涟",
+      "image_key": "xilian"
     },
     {
       "index": 17,
@@ -100,23 +100,23 @@
     },
     {
       "index": 19,
-      "name": "昔涟",
-      "image_key": "xilian"
+      "name": "大丽花",
+      "image_key": "dalihua"
     },
     {
       "index": 20,
+      "name": "星期日",
+      "image_key": "xingqiri"
+    },
+    {
+      "index": 21,
       "name": "刻律德菈",
       "image_key": "kelvdela"
     },
     {
-      "index": 21,
+      "index": 22,
       "name": "阮·梅",
       "image_key": "ruanmei"
-    },
-    {
-      "index": 22,
-      "name": "托帕",
-      "image_key": "tuopa"
     },
     {
       "index": 23,
@@ -125,48 +125,48 @@
     },
     {
       "index": 24,
-      "name": "星期日",
-      "image_key": "xingqiri"
+      "name": "托帕",
+      "image_key": "tuopa"
     },
     {
       "index": 25,
-      "name": "椒丘",
-      "image_key": "jiaoqiu"
-    },
-    {
-      "index": 26,
       "name": "黄泉",
       "image_key": "huangquan"
     },
     {
-      "index": 27,
-      "name": "青雀",
-      "image_key": "qingque"
-    },
-    {
-      "index": 28,
+      "index": 26,
       "name": "刃",
       "image_key": "ren"
     },
     {
-      "index": 29,
+      "index": 27,
       "name": "海瑟音",
       "image_key": "haiseyin"
     },
     {
-      "index": 30,
-      "name": "米沙",
-      "image_key": "misha"
+      "index": 28,
+      "name": "椒丘",
+      "image_key": "jiaoqiu"
     },
     {
-      "index": 31,
+      "index": 29,
+      "name": "青雀",
+      "image_key": "qingque"
+    },
+    {
+      "index": 30,
       "name": "不死途",
       "image_key": "busitu"
     },
     {
-      "index": 32,
+      "index": 31,
       "name": "黑塔",
       "image_key": "heita"
+    },
+    {
+      "index": 32,
+      "name": "米沙",
+      "image_key": "misha"
     },
     {
       "index": 33,
@@ -180,13 +180,13 @@
     },
     {
       "index": 35,
-      "name": "绯英",
-      "image_key": "feiying"
+      "name": "流萤",
+      "image_key": "liuying"
     },
     {
       "index": 36,
-      "name": "流萤",
-      "image_key": "liuying"
+      "name": "三月七",
+      "image_key": "sanyueqi"
     },
     {
       "index": 37,
@@ -195,8 +195,8 @@
     },
     {
       "index": 38,
-      "name": "三月七",
-      "image_key": "sanyueqi"
+      "name": "绯英",
+      "image_key": "feiying"
     },
     {
       "index": 39,

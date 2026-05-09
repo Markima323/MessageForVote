@@ -1,0 +1,46 @@
+{
+  ".custom-alert-button": [
+    {
+      "cls": "custom-alert-button",
+      "text": "",
+      "visible": false,
+      "inline_display": "",
+      "parent_overlay": "custom-alert-overlay"
+    },
+    {
+      "cls": "custom-alert-button",
+      "text": "确认投票",
+      "visible": true,
+      "inline_display": "",
+      "parent_overlay": "custom-alert-overlay2"
+    }
+  ],
+  ".custom-alert-button-2": [
+    {
+      "cls": "custom-alert-button-2",
+      "text": "我再想想",
+      "visible": true,
+      "inline_display": "",
+      "parent_overlay": "custom-alert-overlay2"
+    }
+  ],
+  ".custom-alert-overlay": [
+    {
+      "cls": "custom-alert-overlay",
+      "text": "",
+      "visible": false,
+      "inline_display": "",
+      "parent_overlay": null
+    }
+  ],
+  ".custom-alert-overlay2": [
+    {
+      "cls": "custom-alert-overlay2",
+      "text": "确定投给TA吗？ 组还可以投2票 我再想想 确认投票",
+      "visible": false,
+      "inline_display": "none",
+      "parent_overlay": null
+    }
+  ],
+  ".custom-alert-overlay3": []
+}

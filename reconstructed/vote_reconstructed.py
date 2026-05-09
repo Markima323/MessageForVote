@@ -195,8 +195,12 @@ class ProxyManager:
 # Per-attempt timing observed: ~9-11 s navigation + ~5-6 s modal wait.
 # =============================================================================
 CAPTCHA_PROBE_TIMEOUT_MS  = 1500    # [STRONG] short — "未弹" is logged immediately if absent
-CONFIRM_MODAL_TIMEOUT_MS  = 6000    # [HARD]   ~6 s gap between captcha-skip and timeout
-NAVIGATE_TIMEOUT_MS       = 30_000  # [GUESS]  generous default
+# Bumped from the original .exe's 6 s — proxy hops add 4-8 s of latency
+# before captcha JS finishes booting and shows .window-show. Direct
+# connection probe sees it at +2.5 s; through paid-proxy stack +8~12 s
+# is typical, hence 20 s margin.
+CONFIRM_MODAL_TIMEOUT_MS  = 20_000
+NAVIGATE_TIMEOUT_MS       = 60_000  # bumped from 30 s — slow networks / cold-start browsers
 MAX_RETRIES               = 3       # [HARD]   "retry 1/3" through "retry 3/3"
 
 
@@ -343,12 +347,42 @@ class Voter:
                 self.log(f"[INFO] [{vote_id}] 未弹 captcha，跳过")
 
             # ---- click 确认投票 ----
+            # First, make sure the captcha mask animation has fully cleared
+            # — otherwise its still-fading overlay swallows the click on the
+            # confirm button below it (Playwright's actionability check then
+            # times out and retry kicks in).
             try:
-                await page.locator(self.CONFIRM_BUTTON_SELECTOR).filter(
-                    has_text="确认投票"
-                ).first.click()
+                await page.locator(".mask-show").first.wait_for(
+                    state="hidden", timeout=3_000)
             except Exception:
-                await page.get_by_text("确认投票").first.click()
+                pass
+
+            self.log(f"[INFO] [{vote_id}] 准备点击 '确认投票'")
+            click_target = (
+                page.locator(self.CONFIRM_BUTTON_SELECTOR)
+                .filter(has_text="确认投票")
+                .first
+            )
+            clicked = False
+            # try a normal click first; if Playwright's actionability check
+            # times out (e.g. element animating, transient mask), retry with
+            # force=True which skips visibility/stability gates.
+            for label, fn in [
+                ("normal", lambda: click_target.click(timeout=8_000)),
+                ("force",  lambda: click_target.click(timeout=8_000, force=True)),
+                ("text-fallback",
+                 lambda: page.get_by_text("确认投票").first.click(
+                     timeout=8_000, force=True)),
+            ]:
+                try:
+                    await fn()
+                    clicked = True
+                    self.log(f"[INFO] [{vote_id}] 点击成功 ({label})")
+                    break
+                except Exception as e:
+                    self.log(f"[WARN] [{vote_id}] 点击失败 ({label}): {type(e).__name__}")
+            if not clicked:
+                return False
 
             # success indicator: modal returns to display:none
             try:
@@ -359,8 +393,10 @@ class Voter:
                     }""",
                     timeout=CONFIRM_MODAL_TIMEOUT_MS,
                 )
+                self.log(f"[OK] [{vote_id}] 投票成功")
                 return True
             except Exception:
+                self.log(f"[WARN] [{vote_id}] 模态未关闭（可能投票被服务端拒绝）")
                 return False
         finally:
             try:
@@ -369,30 +405,17 @@ class Voter:
                 pass
 
     async def _handle_captcha(self, page: Page):
-        """**Deliberate stub.**
+        """[USER-IMPLEMENTED] 半人工模式：等用户手动滑滑块。
 
-        The site uses Aliyun (FeiLin) slide captcha. Confirmed facts:
-          - 360 px wide slide (CSS var --aliyun-slide-width)
-          - 40 px tall handle  (--aliyun-slide-height)
-          - frontend script: o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js
-          - dynamicJS:       g.alicdn.com/captcha-frontend/dynamicJS/3.25.1/cx.041.*.js
-
-          (a) Human-in-the-loop (headful mode):
-                await page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
-                    state="hidden", timeout=120_000)
-              The user solves the slider in the visible browser; the
-              tkinter Text log can show "请在浏览器内完成滑块". This is
-              the most plausible path the original takes — PIL is
-              bundled but no fonts/templates ship with it, fitting a
-              "show, don't solve" pattern.
-
-          (b) Programmatic solver / token-injection:
-                Aliyun captcha exposes a JS callback once solved; an
-                attacker-controlled implementation can submit a token
-                obtained from a third-party solving service.
+        阿里云 captcha 弹出时，浏览器里出现一个 .window-show 容器；
+        用户在浏览器里把滑块滑到位之后，这个容器会消失。
+        我们就等它消失即可——超时上限 120 秒（够一个人慢慢滑）。
         """
-        raise NotImplementedError(
-            "captcha handler is a stub by design — see comment in source")
+        self.log("[INFO] 请在浏览器窗口内完成滑块验证（120 秒内）")
+        await page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
+            state="hidden", timeout=120_000)
+        self.log("[OK] 滑块已通过，继续投票")
+
 
     async def vote_with_retries(self, browser: Browser, vote_id: int) -> bool:
         """[HARD] full retry envelope for one vote attempt."""
@@ -461,26 +484,26 @@ class VoteRunner:
         self._loop = asyncio.get_running_loop()
         proxies = ProxyManager(self.cfg.proxy_api_url, self.cfg.proxy_protocol, self.log)
         async with async_playwright() as pw:
-            # [HARD] log: "浏览器引擎: chromium" emitted before browser launch
-            self.log(f"[INFO] 浏览器引擎: {self.cfg.browser_engine}")
-
-            engine = pw.chromium if self.cfg.browser_engine == "chromium" else pw.webkit
+            # All chromium-family browsers (Chrome, Edge, Brave, bundled
+            # chromium-1217) are launched via pw.chromium with a custom
+            # executable_path. The "engine" choice is therefore implicit.
+            engine = pw.chromium
             launch_kwargs = dict(headless=self.cfg.headless)
-            if self.cfg.browser_engine == "chromium":
-                resolved = resolve_browser_path(self.cfg.browser_path)
-                if resolved:
-                    launch_kwargs["executable_path"] = resolved
-                    if resolved != self.cfg.browser_path:
-                        self.log(f"[WARN] 配置的浏览器路径不存在，自动切换到: {resolved}")
-                        # update config so the GUI shows the working path next launch
-                        self.cfg.browser_path = resolved
-                        try:
-                            save_config(self.cfg)
-                        except Exception:
-                            pass
-                else:
-                    self.log("[WARN] 未找到本地 Edge/Chrome，回退到 Playwright 自带 chromium")
-                    # leave executable_path unset → Playwright uses bundled chromium
+            resolved = resolve_browser_path(self.cfg.browser_path)
+            if resolved:
+                launch_kwargs["executable_path"] = resolved
+                self.log(f"[INFO] 使用浏览器: {resolved}")
+                if resolved != self.cfg.browser_path:
+                    self.log(f"[WARN] 配置的浏览器路径不存在，已自动切换")
+                    # update config so the GUI shows the working path next launch
+                    self.cfg.browser_path = resolved
+                    try:
+                        save_config(self.cfg)
+                    except Exception:
+                        pass
+            else:
+                self.log("[WARN] 未找到本地 Chrome/Edge，回退到 Playwright 自带 chromium")
+                # leave executable_path unset → Playwright uses bundled chromium
 
             # Single long-lived browser process; per-vote we spawn fresh
             # contexts each with their own proxy.  This matches the
@@ -571,16 +594,22 @@ def save_config(cfg: Config):
         pass
 
 
-# Common Edge install locations on Windows. The first one matches the
-# original .exe's default but contains a typo (space vs. backslash);
-# subsequent entries are the actually-typical install paths.
-_EDGE_PROBE_PATHS = [
+# Common chromium-family install locations on Windows.  Chrome is
+# preferred (typically faster startup than Edge), then Edge as fallback.
+_BROWSER_PROBE_PATHS = [
+    # Chrome
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    # Edge
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
     r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    # Edge Beta / Dev / Chrome Beta / Brave fallbacks
     r"C:\Program Files (x86)\Microsoft\Edge Beta\Application\msedge.exe",
     r"C:\Program Files\Microsoft\Edge Beta\Application\msedge.exe",
     r"C:\Program Files (x86)\Microsoft\Edge Dev\Application\msedge.exe",
     r"C:\Program Files\Microsoft\Edge Dev\Application\msedge.exe",
+    r"C:\Program Files\Google\Chrome Beta\Application\chrome.exe",
+    r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
 ]
 
 
@@ -590,13 +619,13 @@ def resolve_browser_path(configured: str) -> Optional[str]:
 
     Resolution order:
       1. exactly the configured path, iff it exists
-      2. any path in _EDGE_PROBE_PATHS that exists
+      2. any path in _BROWSER_PROBE_PATHS that exists (Chrome > Edge)
       3. None  → caller should drop executable_path so playwright uses
                  its bundled chromium-1217 from .venv/.../ms-playwright
     """
     if configured and os.path.isfile(configured):
         return configured
-    for p in _EDGE_PROBE_PATHS:
+    for p in _BROWSER_PROBE_PATHS:
         if os.path.isfile(p):
             return p
     return None
@@ -621,7 +650,8 @@ class App(tk.Tk):
         self.var_btn_index   = tk.IntVar(value=cfg.target_button_index)
         self.var_concurrency = tk.IntVar(value=cfg.concurrency)
         self.var_total       = tk.IntVar(value=cfg.total_votes)
-        self.var_engine      = tk.StringVar(value=cfg.browser_engine)
+        # browser engine is fixed to chromium now — Playwright treats Chrome,
+        # Edge, Brave, and bundled chromium-1217 all as the same engine.
         self.var_browser     = tk.StringVar(value=cfg.browser_path)
         self.var_headless    = tk.BooleanVar(value=cfg.headless)
         self.var_status      = tk.StringVar(value="就绪")
@@ -659,8 +689,7 @@ class App(tk.Tk):
             ("或 按钮序号 (0-70, 留空名字时):",    "spinbox",  self.var_btn_index, (0, 70)),
             ("并发数:",                           "spinbox",  self.var_concurrency, (1, 100)),
             ("总投票次数:",                       "spinbox",  self.var_total, (1, 100_000)),
-            ("浏览器引擎 (webkit 最轻):",          "combobox", self.var_engine, ["chromium", "webkit"]),
-            ("浏览器路径 (仅 chromium 用):",       "entry",    self.var_browser),
+            ("浏览器路径（chrome.exe 或 msedge.exe）:", "entry", self.var_browser),
         ]
         for r, row in enumerate(rows):
             label, kind, var, *opts = row
@@ -714,7 +743,7 @@ class App(tk.Tk):
             target_button_index=int(self.var_btn_index.get()),
             concurrency=int(self.var_concurrency.get()),
             total_votes=int(self.var_total.get()),
-            browser_engine=self.var_engine.get(),
+            browser_engine="chromium",  # field retained for config-yaml compat
             browser_path=self.var_browser.get(),
             headless=bool(self.var_headless.get()),
             last_resolved_name=self._last_resolved_name,

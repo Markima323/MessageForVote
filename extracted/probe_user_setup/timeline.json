@@ -1,0 +1,2787 @@
+[
+  {
+    "t": 1778331709.489259,
+    "label": "start_navigate"
+  },
+  {
+    "t": 1778331711.8148055,
+    "label": "framenavigated",
+    "url": "https://www.starrailawards.com/Vote2026/index.html"
+  },
+  {
+    "t": 1778331711.8288302,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/style.css?v=2026042701",
+    "rt": "stylesheet"
+  },
+  {
+    "t": 1778331711.8292007,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/webgl/ThreeWebGL.js",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8302336,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/webgl/ThreeExtras.js",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8306582,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/webgl/Detector.js",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8311107,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/webgl/RequestAnimationFrame.js",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8318443,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/LOGO.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8330495,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/share.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8334606,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/kvResult2.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8340304,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/title-overlay.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8343124,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/follow_avatar.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8350408,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/track_miyou.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8354886,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/track_one.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8359032,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/track_two.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.83637,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/track_wake.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.836693,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/track_awards.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8373458,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/track_result.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8377852,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/zhanlidang.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8381205,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/track_famale.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8383703,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/track_male.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8386571,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/track_aha.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8389096,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/track_gaoguang.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8392475,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/coin.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8395593,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/refrush.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8397744,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/home-inactive.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.839937,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/home-active.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8413346,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/schedule-inactive.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8420098,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/schedule-active.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.842584,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/tierlist-inactive.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8429923,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/tierlist-active.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8438935,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/versus-inactive.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8442163,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/versus-active.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8444152,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/rating-inactive.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8446527,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/nav/rating-active.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331711.8465204,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characterb.js",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8466508,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/tierlist.js?v=4",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8467653,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/godlike.js",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8471925,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/Achieve.js?v=1",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.847406,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characterOld.js?v=44",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8475664,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/GameContent.js?v=34",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8476868,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/mainwd.js?v=33",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8478346,
+    "label": "request",
+    "method": "GET",
+    "url": "https://o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8481991,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/main.js?v=2026050405",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8484929,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/rindex.js?v=888989",
+    "rt": "script"
+  },
+  {
+    "t": 1778331711.8486917,
+    "label": "console",
+    "type": "warning",
+    "text": "<link rel=preload> uses an unsupported `as` value"
+  },
+  {
+    "t": 1778331713.4792702,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/style.css?v=2026042701"
+  },
+  {
+    "t": 1778331713.5058856,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/webgl/Detector.js"
+  },
+  {
+    "t": 1778331713.5065181,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/webgl/RequestAnimationFrame.js"
+  },
+  {
+    "t": 1778331713.6186333,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/webgl/ThreeWebGL.js"
+  },
+  {
+    "t": 1778331713.6536179,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/webgl/ThreeExtras.js"
+  },
+  {
+    "t": 1778331713.9993236,
+    "label": "console",
+    "type": "warning",
+    "text": "<link rel=preload> uses an unsupported `as` value"
+  },
+  {
+    "t": 1778331714.1432512,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/LOGO.png"
+  },
+  {
+    "t": 1778331714.1446579,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/bg.webm",
+    "rt": "media"
+  },
+  {
+    "t": 1778331714.145429,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/bg.webm",
+    "rt": "media"
+  },
+  {
+    "t": 1778331714.1516562,
+    "label": "response",
+    "status": 200,
+    "url": "https://o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js"
+  },
+  {
+    "t": 1778331714.1657598,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/share.png"
+  },
+  {
+    "t": 1778331714.3048244,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/kvResult2.png"
+  },
+  {
+    "t": 1778331714.480022,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/title-overlay.png"
+  },
+  {
+    "t": 1778331714.5417576,
+    "label": "response",
+    "status": 206,
+    "url": "https://static.appoint.icu/Railvote/bg.webm"
+  },
+  {
+    "t": 1778331714.542706,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/home-active.png"
+  },
+  {
+    "t": 1778331714.602337,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/follow_avatar.png"
+  },
+  {
+    "t": 1778331714.684991,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/godlike.js"
+  },
+  {
+    "t": 1778331714.686077,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/Achieve.js?v=1"
+  },
+  {
+    "t": 1778331714.687096,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/tierlist.js?v=4"
+  },
+  {
+    "t": 1778331714.688018,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/track_miyou.png"
+  },
+  {
+    "t": 1778331714.688844,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/track_one.png"
+  },
+  {
+    "t": 1778331714.6893709,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/track_two.png"
+  },
+  {
+    "t": 1778331714.6899295,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/track_wake.png"
+  },
+  {
+    "t": 1778331714.6913278,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/track_awards.png"
+  },
+  {
+    "t": 1778331714.6917427,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/track_result.png"
+  },
+  {
+    "t": 1778331714.6923125,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/zhanlidang.png"
+  },
+  {
+    "t": 1778331714.6926868,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/track_famale.png"
+  },
+  {
+    "t": 1778331714.693305,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/main.js?v=2026050405"
+  },
+  {
+    "t": 1778331714.69412,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characterb.js"
+  },
+  {
+    "t": 1778331714.6946514,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/GameContent.js?v=34"
+  },
+  {
+    "t": 1778331714.6960883,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characterOld.js?v=44"
+  },
+  {
+    "t": 1778331714.6968331,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/rindex.js?v=888989"
+  },
+  {
+    "t": 1778331714.6973343,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/mainwd.js?v=33"
+  },
+  {
+    "t": 1778331714.726718,
+    "label": "response",
+    "status": 206,
+    "url": "https://static.appoint.icu/Railvote/bg.webm"
+  },
+  {
+    "t": 1778331714.7271771,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/track_male.png"
+  },
+  {
+    "t": 1778331714.7280564,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/track_aha.png"
+  },
+  {
+    "t": 1778331714.7545455,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/track_gaoguang.png"
+  },
+  {
+    "t": 1778331714.755239,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/coin.png"
+  },
+  {
+    "t": 1778331714.7559428,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/refrush.png"
+  },
+  {
+    "t": 1778331714.7564313,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/home-inactive.png"
+  },
+  {
+    "t": 1778331714.7570002,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/schedule-inactive.png"
+  },
+  {
+    "t": 1778331714.7573977,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/schedule-active.png"
+  },
+  {
+    "t": 1778331714.7579181,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/tierlist-inactive.png"
+  },
+  {
+    "t": 1778331714.8628387,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/tierlist-active.png"
+  },
+  {
+    "t": 1778331714.8635597,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/versus-inactive.png"
+  },
+  {
+    "t": 1778331714.8644412,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/versus-active.png"
+  },
+  {
+    "t": 1778331714.871903,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/rating-inactive.png"
+  },
+  {
+    "t": 1778331714.8727539,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/nav/rating-active.png"
+  },
+  {
+    "t": 1778331715.0820255,
+    "label": "framenavigated",
+    "url": "about:blank"
+  },
+  {
+    "t": 1778331715.877028,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/agelaiya.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.87763,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/aisida.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8782306,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/alan.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8786647,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/baie.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8791695,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/bailu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8796463,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/botiou.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.880414,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/buluoniya.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8807588,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/busitu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.881362,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/dalihua.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8818805,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/danheng.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8822088,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/feicui.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8828282,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/feixiao.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.883221,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/feiying.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8837516,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/fengjin.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.884165,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/fuxuan.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8844526,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/guinaifen.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8847342,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/hanya.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.885261,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/heita.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8860002,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/haiseyin.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8864505,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/heitiane.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8870318,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/huahuo.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8874195,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/huangquan.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8876975,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/huke.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8885982,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/huohuo.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8890276,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jialahe.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8894222,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jiaoqiu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8897164,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jiepade.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8899853,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jingliu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8902495,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jingyuan.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8906374,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jizi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8910263,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/kafuka.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8912396,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/kelala.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.891762,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/kelvdela.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8925128,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/lingke.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8931491,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/lingsha.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.893511,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/liuying.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8937943,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/luanpo.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8944545,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/luka.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.895333,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/luocha.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8957615,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/misha.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8963985,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/moze.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.896759,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/nakexia.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8971019,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/natasha.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.897401,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/peila.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8984656,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/qingque.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.898632,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/ren.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8987443,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/ruanmei.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8988528,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/saifeier.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8991163,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/sangbo.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8994286,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/sanyueqi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.899674,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/shajin.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8998423,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/sushang.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.8999689,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/tibao.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.900095,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/tingyun.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9002328,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/tuopa.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.900571,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/waerte.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9007342,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/wandi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9008694,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xiadie.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9009824,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xier.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9010866,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xilian.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9011827,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xiluwa.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9013026,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xingqiri.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9014287,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xueyi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9016182,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yanqing.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9019077,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yaoguang.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.902264,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yinlang.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9025228,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yinzhi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9026895,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yukong.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9028354,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yunli.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9030101,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/zhenliyisheng.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9034553,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/zhigengniao.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9044383,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/sikete.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9047344,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/wuwubo.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9049141,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/peipei.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9051535,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jimi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9053721,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/shuoguaihua.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9058602,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/limao.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9061396,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/zeiling.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.906322,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/bizhui.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9064786,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/shuweng.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9066331,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/pangbai.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9070115,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/dianshiji.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9072397,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xiaochunhu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9073749,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/laigushi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9075315,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/pamu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9076705,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/mimi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9078386,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/dadishou.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9080348,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/fenfeng.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9081702,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/tiemu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9082723,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/huanlong.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9084125,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/guiji.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9085472,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/kakamu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9086468,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/aha.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9087477,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/shenzhuri.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.908871,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xingxiao.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.909021,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/guangshi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.915965,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/zhuwang.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9166546,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/luosi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331715.9178307,
+    "label": "request",
+    "method": "GET",
+    "url": "https://g.alicdn.com/captcha-frontend/FeiLin/1.4.2/feilin063.a821304abe965105d84bd92251521ba2fc6e2a891aacf07927e64e99d966c4e8.js",
+    "rt": "script"
+  },
+  {
+    "t": 1778331716.0893507,
+    "label": "console",
+    "type": "log",
+    "text": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 | WebGL 1.0 (OpenGL ES 2.0 Chromium) | WebKit | WebKit WebGL | WebGL GLSL ES 1.0 (OpenGL"
+  },
+  {
+    "t": 1778331716.1031413,
+    "label": "console",
+    "type": "warning",
+    "text": "WebGL: INVALID_OPERATION: getAttribLocation: program not linked"
+  },
+  {
+    "t": 1778331716.1034906,
+    "label": "console",
+    "type": "warning",
+    "text": "WebGL: INVALID_OPERATION: getAttribLocation: program not linked"
+  },
+  {
+    "t": 1778331716.1036992,
+    "label": "console",
+    "type": "warning",
+    "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+  },
+  {
+    "t": 1778331716.1039073,
+    "label": "console",
+    "type": "warning",
+    "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+  },
+  {
+    "t": 1778331716.1039898,
+    "label": "console",
+    "type": "warning",
+    "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+  },
+  {
+    "t": 1778331716.1040616,
+    "label": "console",
+    "type": "warning",
+    "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+  },
+  {
+    "t": 1778331716.1041393,
+    "label": "console",
+    "type": "warning",
+    "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+  },
+  {
+    "t": 1778331716.1042132,
+    "label": "console",
+    "type": "warning",
+    "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+  },
+  {
+    "t": 1778331716.1045003,
+    "label": "console",
+    "type": "warning",
+    "text": "WebGL: INVALID_OPERATION: getUniformLocation: program not linked"
+  },
+  {
+    "t": 1778331716.1923358,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/avatars/333.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.1968088,
+    "label": "console",
+    "type": "log",
+    "text": "[Object, Object, Object, Object, Object, Object, Object, Object] processGroupData"
+  },
+  {
+    "t": 1778331716.3479693,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/aisida.png"
+  },
+  {
+    "t": 1778331716.3487926,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/agelaiya.png"
+  },
+  {
+    "t": 1778331716.3632128,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/baie.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3637736,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/xiadie.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3641076,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/wandi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3650389,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/tibao.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3657122,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/luocha.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3660684,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/kafuka.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3663125,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/danheng.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3666713,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/zhigengniao.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3668895,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/yaoguang.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.367079,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/agelaiya.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3672845,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/shajin.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3675206,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/nakexia.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3676732,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/fengjin.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3678648,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/huahuo.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3680224,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/huohuo.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3682656,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/yinlang.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3684752,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/xilian.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3686154,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/zhenliyisheng.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.368755,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/jingliu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3688862,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/dalihua.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3690236,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/xingqiri.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3691683,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/kelvdela.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3693116,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/ruanmei.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3694859,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/luanpo.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3696246,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/tuopa.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3698022,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/huangquan.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3699424,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/ren.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3700814,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/haiseyin.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3702264,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/jiaoqiu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.3703632,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/qingque.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.4018004,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/player.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.4022677,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/enemy.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.402575,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/bullet.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331716.5450978,
+    "label": "console",
+    "type": "warning",
+    "text": "[.WebGL-0x207400130a00] GL_INVALID_ENUM: glTexParameteri: Texture filter not recognized."
+  },
+  {
+    "t": 1778331716.628637,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/alan.png"
+  },
+  {
+    "t": 1778331716.6302545,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/baie.png"
+  },
+  {
+    "t": 1778331716.630797,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/bailu.png"
+  },
+  {
+    "t": 1778331716.631219,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/botiou.png"
+  },
+  {
+    "t": 1778331716.6318703,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/buluoniya.png"
+  },
+  {
+    "t": 1778331716.67103,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/avatars/333.png"
+  },
+  {
+    "t": 1778331716.822275,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/busitu.png"
+  },
+  {
+    "t": 1778331716.8785193,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/dalihua.png"
+  },
+  {
+    "t": 1778331717.0533555,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/danheng.png"
+  },
+  {
+    "t": 1778331717.123313,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/feicui.png"
+  },
+  {
+    "t": 1778331717.2086866,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/feixiao.png"
+  },
+  {
+    "t": 1778331717.2886102,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/feiying.png"
+  },
+  {
+    "t": 1778331717.3422112,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/fuxuan.png"
+  },
+  {
+    "t": 1778331717.3922284,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/fengjin.png"
+  },
+  {
+    "t": 1778331717.4353764,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/guinaifen.png"
+  },
+  {
+    "t": 1778331717.465907,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/hanya.png"
+  },
+  {
+    "t": 1778331717.4884229,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/heita.png"
+  },
+  {
+    "t": 1778331717.512971,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/haiseyin.png"
+  },
+  {
+    "t": 1778331717.5361886,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/heitiane.png"
+  },
+  {
+    "t": 1778331717.7854667,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/huahuo.png"
+  },
+  {
+    "t": 1778331717.7921247,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/huangquan.png"
+  },
+  {
+    "t": 1778331717.8099692,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/huke.png"
+  },
+  {
+    "t": 1778331717.877657,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/huohuo.png"
+  },
+  {
+    "t": 1778331717.8906326,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jialahe.png"
+  },
+  {
+    "t": 1778331717.897525,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jiaoqiu.png"
+  },
+  {
+    "t": 1778331717.9680755,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jiepade.png"
+  },
+  {
+    "t": 1778331717.9738195,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jingliu.png"
+  },
+  {
+    "t": 1778331717.9871573,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jingyuan.png"
+  },
+  {
+    "t": 1778331717.9984717,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/kafuka.png"
+  },
+  {
+    "t": 1778331718.0178175,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jizi.png"
+  },
+  {
+    "t": 1778331718.0765445,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/kelala.png"
+  },
+  {
+    "t": 1778331718.0882497,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/kelvdela.png"
+  },
+  {
+    "t": 1778331718.0943387,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/lingke.png"
+  },
+  {
+    "t": 1778331718.160059,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/lingsha.png"
+  },
+  {
+    "t": 1778331718.1735563,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/liuying.png"
+  },
+  {
+    "t": 1778331718.1912844,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/luanpo.png"
+  },
+  {
+    "t": 1778331718.197407,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/luka.png"
+  },
+  {
+    "t": 1778331718.2121584,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/luocha.png"
+  },
+  {
+    "t": 1778331718.2701032,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/misha.png"
+  },
+  {
+    "t": 1778331718.2817612,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/moze.png"
+  },
+  {
+    "t": 1778331718.2882307,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/nakexia.png"
+  },
+  {
+    "t": 1778331718.58444,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/natasha.png"
+  },
+  {
+    "t": 1778331718.589976,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/qingque.png"
+  },
+  {
+    "t": 1778331718.5967488,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/peila.png"
+  },
+  {
+    "t": 1778331718.6399395,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/ren.png"
+  },
+  {
+    "t": 1778331718.6406236,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/ruanmei.png"
+  },
+  {
+    "t": 1778331718.646691,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/saifeier.png"
+  },
+  {
+    "t": 1778331718.6571367,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/sangbo.png"
+  },
+  {
+    "t": 1778331718.6631846,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/sanyueqi.png"
+  },
+  {
+    "t": 1778331718.7787542,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/shajin.png"
+  },
+  {
+    "t": 1778331719.0096302,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/tibao.png"
+  },
+  {
+    "t": 1778331719.0171115,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/tingyun.png"
+  },
+  {
+    "t": 1778331719.0718014,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/tuopa.png"
+  },
+  {
+    "t": 1778331719.0722828,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/waerte.png"
+  },
+  {
+    "t": 1778331719.072525,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/wandi.png"
+  },
+  {
+    "t": 1778331719.094539,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/sushang.png"
+  },
+  {
+    "t": 1778331719.0953336,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xiadie.png"
+  },
+  {
+    "t": 1778331719.1075766,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xier.png"
+  },
+  {
+    "t": 1778331719.3803625,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xilian.png"
+  },
+  {
+    "t": 1778331719.6003363,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xiluwa.png"
+  },
+  {
+    "t": 1778331719.6081955,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xingqiri.png"
+  },
+  {
+    "t": 1778331719.6248794,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xueyi.png"
+  },
+  {
+    "t": 1778331719.6252656,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yaoguang.png"
+  },
+  {
+    "t": 1778331719.6330094,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yanqing.png"
+  },
+  {
+    "t": 1778331719.6412206,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yinlang.png"
+  },
+  {
+    "t": 1778331719.6505792,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yinzhi.png"
+  },
+  {
+    "t": 1778331719.6568463,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yukong.png"
+  },
+  {
+    "t": 1778331719.9933472,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/zhenliyisheng.png"
+  },
+  {
+    "t": 1778331719.9997895,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/yunli.png"
+  },
+  {
+    "t": 1778331720.0068176,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/zhigengniao.png"
+  },
+  {
+    "t": 1778331720.0219898,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/sikete.png"
+  },
+  {
+    "t": 1778331720.0314875,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/wuwubo.png"
+  },
+  {
+    "t": 1778331720.0407188,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/jimi.png"
+  },
+  {
+    "t": 1778331720.041974,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/shuoguaihua.png"
+  },
+  {
+    "t": 1778331720.0508516,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/peipei.png"
+  },
+  {
+    "t": 1778331720.1902971,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/limao.png"
+  },
+  {
+    "t": 1778331720.1910994,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/zeiling.png"
+  },
+  {
+    "t": 1778331720.2057946,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/bizhui.png"
+  },
+  {
+    "t": 1778331720.2127473,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/shuweng.png"
+  },
+  {
+    "t": 1778331720.2256348,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/pangbai.png"
+  },
+  {
+    "t": 1778331720.7499697,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/dianshiji.png"
+  },
+  {
+    "t": 1778331720.750481,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xiaochunhu.png"
+  },
+  {
+    "t": 1778331720.7527614,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/laigushi.png"
+  },
+  {
+    "t": 1778331720.7623653,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/pamu.png"
+  },
+  {
+    "t": 1778331720.769641,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/mimi.png"
+  },
+  {
+    "t": 1778331720.7702708,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/dadishou.png"
+  },
+  {
+    "t": 1778331720.7810895,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/fenfeng.png"
+  },
+  {
+    "t": 1778331720.78948,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/tiemu.png"
+  },
+  {
+    "t": 1778331721.1377783,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/huanlong.png"
+  },
+  {
+    "t": 1778331721.1386642,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/kakamu.png"
+  },
+  {
+    "t": 1778331721.143339,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/aha.png"
+  },
+  {
+    "t": 1778331721.1500459,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/guiji.png"
+  },
+  {
+    "t": 1778331721.248474,
+    "label": "response",
+    "status": 200,
+    "url": "https://g.alicdn.com/captcha-frontend/FeiLin/1.4.2/feilin063.a821304abe965105d84bd92251521ba2fc6e2a891aacf07927e64e99d966c4e8.js"
+  },
+  {
+    "t": 1778331721.4400213,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/shenzhuri.png"
+  },
+  {
+    "t": 1778331721.4409027,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/xingxiao.png"
+  },
+  {
+    "t": 1778331721.4483387,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/guangshi.png"
+  },
+  {
+    "t": 1778331721.61357,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/zhuwang.png"
+  },
+  {
+    "t": 1778331721.7015486,
+    "label": "framenavigated",
+    "url": "about:blank"
+  },
+  {
+    "t": 1778331721.8207495,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/baie.png"
+  },
+  {
+    "t": 1778331721.838811,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/wandi.png"
+  },
+  {
+    "t": 1778331721.8667688,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/xiadie.png"
+  },
+  {
+    "t": 1778331721.8990698,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/tibao.png"
+  },
+  {
+    "t": 1778331721.9322371,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/character_tierlist/luosi.png"
+  },
+  {
+    "t": 1778331721.9332697,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/luocha.png"
+  },
+  {
+    "t": 1778331721.9982193,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/kafuka.png"
+  },
+  {
+    "t": 1778331722.0072234,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/danheng.png"
+  },
+  {
+    "t": 1778331722.0529962,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/zhigengniao.png"
+  },
+  {
+    "t": 1778331722.0776162,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/yaoguang.png"
+  },
+  {
+    "t": 1778331722.108981,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/agelaiya.png"
+  },
+  {
+    "t": 1778331722.1316252,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/shajin.png"
+  },
+  {
+    "t": 1778331722.1510086,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/nakexia.png"
+  },
+  {
+    "t": 1778331722.1944401,
+    "label": "console",
+    "type": "startGroupCollapsed",
+    "text": "console.groupCollapsed"
+  },
+  {
+    "t": 1778331722.1949427,
+    "label": "console",
+    "type": "count",
+    "text": "%c%d: 1"
+  },
+  {
+    "t": 1778331722.196289,
+    "label": "console",
+    "type": "debug",
+    "text": "%c%d font-size:0;color:transparent NaN"
+  },
+  {
+    "t": 1778331722.1980383,
+    "label": "console",
+    "type": "dir",
+    "text": "%c%d font-size:0;color:transparent Error"
+  },
+  {
+    "t": 1778331722.1990492,
+    "label": "console",
+    "type": "dirxml",
+    "text": "%c%d font-size:0;color:transparent Error"
+  },
+  {
+    "t": 1778331722.1995733,
+    "label": "console",
+    "type": "info",
+    "text": "%c%d font-size:0;color:transparent NaN"
+  },
+  {
+    "t": 1778331722.200063,
+    "label": "console",
+    "type": "info",
+    "text": "%c%d font-size:0;color:transparent NaN"
+  },
+  {
+    "t": 1778331722.2007694,
+    "label": "console",
+    "type": "log",
+    "text": "%c%d font-size:0;color:transparent NaN"
+  },
+  {
+    "t": 1778331722.2011118,
+    "label": "console",
+    "type": "table",
+    "text": "%c%d font-size:0;color:transparent Error"
+  },
+  {
+    "t": 1778331722.2018209,
+    "label": "console",
+    "type": "trace",
+    "text": "%c%d font-size:0;color:transparent NaN"
+  },
+  {
+    "t": 1778331722.20213,
+    "label": "console",
+    "type": "info",
+    "text": "%c%d font-size:0;color:transparent NaN"
+  },
+  {
+    "t": 1778331722.2022698,
+    "label": "console",
+    "type": "endGroup",
+    "text": "console.groupEnd"
+  },
+  {
+    "t": 1778331722.2025006,
+    "label": "console",
+    "type": "clear",
+    "text": "console.clear"
+  },
+  {
+    "t": 1778331722.2027338,
+    "label": "console",
+    "type": "clear",
+    "text": "{iter: Object}"
+  },
+  {
+    "t": 1778331722.2054002,
+    "label": "framenavigated",
+    "url": "about:blank"
+  },
+  {
+    "t": 1778331722.4477184,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/fengjin.png"
+  },
+  {
+    "t": 1778331722.4485893,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/huahuo.png"
+  },
+  {
+    "t": 1778331722.4621186,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/huohuo.png"
+  },
+  {
+    "t": 1778331722.4944172,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/yinlang.png"
+  },
+  {
+    "t": 1778331722.50395,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/xilian.png"
+  },
+  {
+    "t": 1778331722.5262775,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/zhenliyisheng.png"
+  },
+  {
+    "t": 1778331722.6285205,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/jingliu.png"
+  },
+  {
+    "t": 1778331722.635987,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/dalihua.png"
+  },
+  {
+    "t": 1778331722.6659079,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/xingqiri.png"
+  },
+  {
+    "t": 1778331722.87808,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/kelvdela.png"
+  },
+  {
+    "t": 1778331722.8866968,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/luanpo.png"
+  },
+  {
+    "t": 1778331722.895916,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/tuopa.png"
+  },
+  {
+    "t": 1778331722.90564,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/huangquan.png"
+  },
+  {
+    "t": 1778331722.922211,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/ren.png"
+  },
+  {
+    "t": 1778331722.9231923,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/ruanmei.png"
+  },
+  {
+    "t": 1778331723.0504951,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/haiseyin.png"
+  },
+  {
+    "t": 1778331723.0582936,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/jiaoqiu.png"
+  },
+  {
+    "t": 1778331723.0728881,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/qingque.png"
+  },
+  {
+    "t": 1778331723.08705,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/player.png"
+  },
+  {
+    "t": 1778331723.1021514,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/enemy.png"
+  },
+  {
+    "t": 1778331723.4663606,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/bullet.png"
+  },
+  {
+    "t": 1778331723.4850798,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/icologo.ico",
+    "rt": "other"
+  },
+  {
+    "t": 1778331723.678382,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/icologo.ico"
+  },
+  {
+    "t": 1778331727.2218637,
+    "label": "page_settled"
+  },
+  {
+    "t": 1778331727.505444,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/busitu.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331727.5059826,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/heita.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331727.506356,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/botiou.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331727.5065906,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/feixiao.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331727.506766,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/misha.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331727.5069966,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/liuying.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331727.507169,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/sanyueqi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331727.5073266,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/jingyuan.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331727.50755,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/feiying.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331727.5077252,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static.appoint.icu/Railvote/characters/yinzhi.png",
+    "rt": "image"
+  },
+  {
+    "t": 1778331727.6256938,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/busitu.png"
+  },
+  {
+    "t": 1778331727.629098,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/heita.png"
+  },
+  {
+    "t": 1778331727.6416726,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/jingyuan.png"
+  },
+  {
+    "t": 1778331727.6443713,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/liuying.png"
+  },
+  {
+    "t": 1778331727.8222778,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/feiying.png"
+  },
+  {
+    "t": 1778331727.8230486,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/botiou.png"
+  },
+  {
+    "t": 1778331727.8324385,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/feixiao.png"
+  },
+  {
+    "t": 1778331727.8429093,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/misha.png"
+  },
+  {
+    "t": 1778331727.844905,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/sanyueqi.png"
+  },
+  {
+    "t": 1778331727.8561907,
+    "label": "response",
+    "status": 200,
+    "url": "https://static.appoint.icu/Railvote/characters/yinzhi.png"
+  },
+  {
+    "t": 1778331728.3736906,
+    "label": "about_to_click"
+  },
+  {
+    "t": 1778331728.4348493,
+    "label": "vote_btn_info",
+    "found": true,
+    "text": "投票",
+    "visible": true,
+    "bbox": {
+      "x": 62.57143020629883,
+      "y": 946.2857666015625,
+      "w": 192.00001525878906,
+      "h": 41.142860412597656
+    },
+    "pointer": "auto",
+    "cls": "vote-btn"
+  },
+  {
+    "t": 1778331728.5359619,
+    "label": "request",
+    "method": "POST",
+    "url": "https://2x2pfb.captcha-open.aliyuncs.com/",
+    "rt": "xhr"
+  },
+  {
+    "t": 1778331728.544459,
+    "label": "clicked"
+  },
+  {
+    "t": 1778331729.0733185,
+    "label": "dom_change_0",
+    "confirm_modal_visible": false,
+    "toasts": [
+      {
+        "cls": "stage-progress-hint",
+        "text": "点击赛段可查看规则"
+      }
+    ],
+    "login_hints": []
+  },
+  {
+    "t": 1778331729.5458567,
+    "label": "response",
+    "status": 200,
+    "url": "https://2x2pfb.captcha-open.aliyuncs.com/"
+  },
+  {
+    "t": 1778331729.5470908,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static-captcha.aliyuncs.com/qst/aigc/online/2/af203005-4719-4ec7-b808-ddf95b18f33f/bitwise_and_result.png",
+    "rt": "xhr"
+  },
+  {
+    "t": 1778331729.547789,
+    "label": "request",
+    "method": "GET",
+    "url": "https://static-captcha.aliyuncs.com/qst/aigc/online/2/af203005-4719-4ec7-b808-ddf95b18f33f/inpainted_with_mask.png",
+    "rt": "xhr"
+  },
+  {
+    "t": 1778331729.5486789,
+    "label": "request",
+    "method": "GET",
+    "url": "https://g.alicdn.com/captcha-frontend/dynamicJS/3.25.0/pe.056.e55dfd9e330c88ef.js",
+    "rt": "script"
+  },
+  {
+    "t": 1778331729.5493653,
+    "label": "request",
+    "method": "GET",
+    "url": "https://g.alicdn.com/captcha-frontend/dynamicJS/3.25.0/main.css",
+    "rt": "stylesheet"
+  },
+  {
+    "t": 1778331729.5714054,
+    "label": "response",
+    "status": 200,
+    "url": "https://g.alicdn.com/captcha-frontend/dynamicJS/3.25.0/main.css"
+  },
+  {
+    "t": 1778331729.6252446,
+    "label": "response",
+    "status": 200,
+    "url": "https://g.alicdn.com/captcha-frontend/dynamicJS/3.25.0/pe.056.e55dfd9e330c88ef.js"
+  },
+  {
+    "t": 1778331730.9516363,
+    "label": "response",
+    "status": 200,
+    "url": "https://static-captcha.aliyuncs.com/qst/aigc/online/2/af203005-4719-4ec7-b808-ddf95b18f33f/bitwise_and_result.png"
+  },
+  {
+    "t": 1778331730.959114,
+    "label": "response",
+    "status": 200,
+    "url": "https://static-captcha.aliyuncs.com/qst/aigc/online/2/af203005-4719-4ec7-b808-ddf95b18f33f/inpainted_with_mask.png"
+  },
+  {
+    "t": 1778331731.6291518,
+    "label": "console",
+    "type": "log",
+    "text": "[Captcha] SDK 初始化完成"
+  },
+  {
+    "t": 1778331731.6709588,
+    "label": "request",
+    "method": "POST",
+    "url": "https://2x2pfb.captcha-open.aliyuncs.com/",
+    "rt": "xhr"
+  },
+  {
+    "t": 1778331731.7126718,
+    "label": "dom_change_5",
+    "window_show_visible": true,
+    "confirm_modal_visible": false,
+    "toasts": [
+      {
+        "cls": "stage-progress-hint",
+        "text": "点击赛段可查看规则"
+      }
+    ],
+    "login_hints": []
+  },
+  {
+    "t": 1778331731.9731987,
+    "label": "response",
+    "status": 200,
+    "url": "https://2x2pfb.captcha-open.aliyuncs.com/"
+  }
+]
