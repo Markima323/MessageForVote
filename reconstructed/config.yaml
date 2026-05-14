@@ -6,7 +6,7 @@ target_character_names:
 - 阿格莱雅
 - 翡翠
 target_button_index: 10
-concurrency: 1
+concurrency: 6
 total_votes: 20000
 debug_mode: false
 browser_engine: chromium
