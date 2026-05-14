@@ -383,13 +383,17 @@ class Voter:
 
     def __init__(self, cfg: Config, proxies: ProxyManager,
                  log: Callable[[str], None],
-                 on_resolved: Optional[Callable[[str, int], None]] = None):
+                 on_resolved: Optional[Callable[[str, int], None]] = None,
+                 on_rank: Optional[Callable[[str, int], None]] = None):
         self.cfg = cfg
         self.proxies = proxies
         self.log = log
         # callback fires once per successful card locate; receiver decides
         # how to dedupe / persist
         self.on_resolved = on_resolved or (lambda _name, _idx: None)
+        # callback fires whenever a PK round resolves a fresh rank for the
+        # target character. Receiver (the GUI) displays it on the panel.
+        self.on_rank = on_rank or (lambda _name, _rank: None)
 
     async def _wait_for_captcha_or_modal(self, page: Page,
                                           timeout_ms: int) -> Optional[str]:
@@ -649,6 +653,9 @@ class Voter:
             else:
                 self.log(f"[INFO] [{vote_id}] 评分接口未返回 id，跳过点赞")
 
+            # ---- PK 阶段（一站到底）----
+            await self._pk_round(page, vote_id, name_to_data)
+
             if ok_first:
                 self.log(f"[OK] [{vote_id}] 本轮全部请求已发送")
             else:
@@ -844,6 +851,188 @@ class Voter:
         except Exception as e:
             self.log(f"[WARN] [{vote_id}] fetch 点赞异常: "
                      f"{type(e).__name__}: {str(e)[:120]}")
+
+    # ========================================================================
+    # PK 阶段：找砂金 → 没找到则刷新 → 找到则按 renqi 投币直至 0 → 取排名
+    # （replays 418.js lines 98-205）
+    # ========================================================================
+    async def _fetch_get_pk_data(self, page: Page, vote_id: int) -> Optional[dict]:
+        """POST /Active2551/GetPkData — request literally matches 418.js."""
+        try:
+            body = await page.evaluate(
+                """async () => {
+                    const r = await fetch("https://www.starrailawards.com/Active2551/GetPkData", {
+                        "headers": {
+                            "accept": "*/*",
+                            "accept-language": "zh-CN,zh;q=0.9,fr;q=0.8,de;q=0.7",
+                            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                            "priority": "u=1, i",
+                            "sec-fetch-dest": "empty",
+                            "sec-fetch-mode": "cors",
+                            "sec-fetch-site": "same-origin",
+                            "x-requested-with": "XMLHttpRequest"
+                        },
+                        "referrer": "https://www.starrailawards.com/Vote2026/index.html",
+                        "body": "tp=2",
+                        "method": "POST",
+                        "mode": "cors",
+                        "credentials": "include"
+                    });
+                    return await r.text();
+                }"""
+            )
+            try:
+                return json.loads(body)
+            except Exception:
+                self.log(f"[WARN] [{vote_id}] GetPkData 返回非 JSON: {body[:120]!r}")
+                return None
+        except Exception as e:
+            self.log(f"[WARN] [{vote_id}] GetPkData 异常: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+            return None
+
+    async def _fetch_pk2(self, page: Page, vote_id: int, vid: int) -> bool:
+        """POST /Active2551/Pk2 — 给某角色投币，request literally matches 418.js."""
+        try:
+            result = await page.evaluate(
+                """async (vid) => {
+                    const r = await fetch("https://www.starrailawards.com/Active2551/Pk2", {
+                        "headers": {
+                            "accept": "*/*",
+                            "accept-language": "zh-CN,zh;q=0.9,fr;q=0.8,de;q=0.7",
+                            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                            "priority": "u=1, i",
+                            "sec-fetch-dest": "empty",
+                            "sec-fetch-mode": "cors",
+                            "sec-fetch-site": "same-origin",
+                            "x-requested-with": "XMLHttpRequest"
+                        },
+                        "referrer": "https://www.starrailawards.com/Vote2026/index.html",
+                        "body": "vid=" + vid,
+                        "method": "POST",
+                        "mode": "cors",
+                        "credentials": "include"
+                    });
+                    return { status: r.status, text: (await r.text()).slice(0, 200) };
+                }""",
+                vid,
+            )
+            status = result.get("status") if isinstance(result, dict) else None
+            return status == 200
+        except Exception as e:
+            self.log(f"[WARN] [{vote_id}] Pk2 异常: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+            return False
+
+    async def _fetch_refresh_pk(self, page: Page, vote_id: int) -> bool:
+        """POST /Active2551/RefreshPk — request literally matches 418.js."""
+        try:
+            result = await page.evaluate(
+                """async () => {
+                    const r = await fetch("https://www.starrailawards.com/Active2551/RefreshPk", {
+                        "headers": {
+                            "accept": "*/*",
+                            "accept-language": "zh-CN,zh;q=0.9,fr;q=0.8,de;q=0.7",
+                            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                            "priority": "u=1, i",
+                            "sec-fetch-dest": "empty",
+                            "sec-fetch-mode": "cors",
+                            "sec-fetch-site": "same-origin",
+                            "x-requested-with": "XMLHttpRequest"
+                        },
+                        "referrer": "https://www.starrailawards.com/Vote2026/index.html",
+                        "body": "tp=2",
+                        "method": "POST",
+                        "mode": "cors",
+                        "credentials": "include"
+                    });
+                    return { status: r.status, text: (await r.text()).slice(0, 200) };
+                }"""
+            )
+            self.log(f"[INFO] [{vote_id}] RefreshPk status={result.get('status')} "
+                     f"body={(result.get('text') or '')[:80]}")
+            return result.get("status") == 200
+        except Exception as e:
+            self.log(f"[WARN] [{vote_id}] RefreshPk 异常: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+            return False
+
+    async def _pk_round(self, page: Page, vote_id: int,
+                        name_to_data: dict,
+                        target_name: str = "砂金",
+                        refresh_max: int = 3) -> None:
+        """完整 PK 流程：找 target → 必要时刷新（上限 refresh_max）→
+        按 data.rq 投币直至 0 → 读最新一条 logs 的 rank 上报 GUI。"""
+        info = name_to_data.get(target_name)
+        if not info or not isinstance(info.get("id"), int):
+            self.log(f"[WARN] [{vote_id}] character.js 里没找到 '{target_name}'，"
+                     f"跳过 PK 阶段")
+            return
+        target_vid = info["id"]
+        self.log(f"[INFO] [{vote_id}] === PK 阶段开始, 目标 {target_name}(vid={target_vid}) ===")
+
+        # ---- 1) 找砂金 ----
+        refresh_count = 0
+        while True:
+            pk = await self._fetch_get_pk_data(page, vote_id)
+            if pk is None or pk.get("errCode") != 0:
+                self.log(f"[WARN] [{vote_id}] GetPkData 失败: {pk}")
+                return
+            data = pk.get("data") or {}
+            left, right = data.get("pk_left"), data.get("pk_right")
+            self.log(f"[INFO] [{vote_id}] PK 对战: left={left}, right={right}")
+            if target_vid in (left, right):
+                self.log(f"[OK] [{vote_id}] '{target_name}' 在当前 PK 中")
+                break
+            if refresh_count >= refresh_max:
+                self.log(f"[INFO] [{vote_id}] 已刷新 {refresh_max} 次未找到 "
+                         f"'{target_name}'，放弃 PK 阶段")
+                return
+            refresh_count += 1
+            self.log(f"[INFO] [{vote_id}] 第 {refresh_count}/{refresh_max} 次刷新 PK")
+            if not await self._fetch_refresh_pk(page, vote_id):
+                return
+
+        # ---- 2) 按 rq 投币循环 ----
+        total = 0
+        rounds = 0
+        while True:
+            pk = await self._fetch_get_pk_data(page, vote_id)
+            if pk is None or pk.get("errCode") != 0:
+                break
+            rq = (pk.get("data") or {}).get("rq", 0)
+            if not isinstance(rq, int) or rq <= 0:
+                self.log(f"[INFO] [{vote_id}] renqi={rq}，停止投币")
+                break
+            self.log(f"[INFO] [{vote_id}] renqi={rq}，给 '{target_name}' 投 {rq} 票")
+            for _ in range(rq):
+                await self._fetch_pk2(page, vote_id, target_vid)
+                total += 1
+            rounds += 1
+            # 防御性：如果服务器异常导致 rq 不扣减，避免死循环
+            if rounds > 20:
+                self.log(f"[WARN] [{vote_id}] 投币循环 {rounds} 轮仍未清空，强行退出")
+                break
+        self.log(f"[OK] [{vote_id}] PK 投币结束，共 {total} 次")
+
+        # ---- 3) 读最新一条 logs 的 rank ----
+        pk = await self._fetch_get_pk_data(page, vote_id)
+        if pk is None or pk.get("errCode") != 0:
+            return
+        logs = (pk.get("data") or {}).get("logs") or []
+        rank = None
+        for entry in logs:
+            if isinstance(entry, dict) and entry.get("vote_name") == target_name:
+                rank = entry.get("rank")
+                break
+        if isinstance(rank, int):
+            self.log(f"[OK] [{vote_id}] {target_name}当前的排名为：{rank}")
+            try:
+                self.on_rank(target_name, rank)
+            except Exception:
+                pass
+        else:
+            self.log(f"[INFO] [{vote_id}] logs 中未找到 '{target_name}' 的 rank")
 
     async def _fetch_tier_list(self, page: Page, vote_id: int,
                                 targets: List[tuple],
@@ -1136,11 +1325,13 @@ class Voter:
 class VoteRunner:
     def __init__(self, cfg: Config, log: Callable[[str], None],
                  status: Callable[[str], None],
-                 on_resolved: Optional[Callable[[str, int], None]] = None):
+                 on_resolved: Optional[Callable[[str, int], None]] = None,
+                 on_rank: Optional[Callable[[str, int], None]] = None):
         self.cfg = cfg
         self.log = log
         self.set_status = status
         self.on_resolved = on_resolved
+        self.on_rank = on_rank
         self._stop = threading.Event()
         self._success = 0
         self._lock = threading.Lock()
@@ -1230,7 +1421,8 @@ class VoteRunner:
                     await ctx.close()
                 self.log(f"[INFO] page pool 就绪：{self.cfg.concurrency} 个 context")
 
-                voter = Voter(self.cfg, proxies, self.log, self.on_resolved)
+                voter = Voter(self.cfg, proxies, self.log,
+                              self.on_resolved, self.on_rank)
                 # Debug mode = force exactly one round, single-threaded, then
                 # idle until the user clicks Stop. This lets the browser
                 # window stay open for inspection after the round finishes.
@@ -1472,6 +1664,8 @@ class App(tk.Tk):
         self._fired_for_session: set = set()
         self.var_resolved_hint = tk.StringVar(
             value=self._format_resolved_hint())
+        # PK 阶段实时排名显示
+        self.var_rank_hint = tk.StringVar(value="PK 排名: 暂无数据")
 
         self._build()
         self.runner: Optional[VoteRunner] = None
@@ -1589,6 +1783,13 @@ class App(tk.Tk):
                   foreground="#888").grid(
             row=r, column=0, columnspan=2, sticky="w",
             padx=8, pady=(4, 6))
+        r += 1
+
+        # PK 阶段实时排名（每一轮 PK 完成后更新）
+        ttk.Label(cfg_frame, textvariable=self.var_rank_hint,
+                  foreground="#2aa198", font=("TkDefaultFont", 10, "bold")).grid(
+            row=r, column=0, columnspan=2, sticky="w",
+            padx=8, pady=(0, 6))
 
         # button row [HARD]: 开始 / 停止 / 就绪 status label
         btn_row = ttk.Frame(self)
@@ -1682,6 +1883,12 @@ class App(tk.Tk):
         except Exception:
             pass
 
+    def _on_rank_updated(self, name: str, rank: int):
+        """Called every time a PK round resolves a fresh rank."""
+        ts = time.strftime("%H:%M:%S")
+        self.after(0, lambda: self.var_rank_hint.set(
+            f"{name}当前的排名为：{rank}  (更新于 {ts})"))
+
     def log(self, msg: str):
         # [HARD] runtime log format: "HH:MM:SS [LEVEL] [vote_id] message"
         ts = time.strftime("%H:%M:%S")
@@ -1734,7 +1941,8 @@ class App(tk.Tk):
         # reset the per-session dedup so a re-run can re-resolve
         self._fired_for_session.clear()
         self.runner = VoteRunner(cfg, self.log, self.set_status,
-                                 on_resolved=self._on_card_resolved)
+                                 on_resolved=self._on_card_resolved,
+                                 on_rank=self._on_rank_updated)
         self.runner.run_in_thread()
         self.btn_start.configure(state="disabled")
         self.btn_stop.configure(state="normal")

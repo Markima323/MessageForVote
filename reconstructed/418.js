@@ -182,3 +182,25 @@ fetch("https://www.starrailawards.com/Active2551/Zan", {
   "mode": "cors",
   "credentials": "include"
 });
+
+//刷新pk
+fetch("https://www.starrailawards.com/Active2551/RefreshPk", {
+  "headers": {
+    "accept": "*/*",
+    "accept-language": "zh-CN,zh;q=0.9,fr;q=0.8,de;q=0.7",
+    "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+    "priority": "u=1, i",
+    "sec-ch-ua": "\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"Windows\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-requested-with": "XMLHttpRequest"
+  },
+  "referrer": "https://www.starrailawards.com/Vote2026/index.html",
+  "body": "tp=2",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});
