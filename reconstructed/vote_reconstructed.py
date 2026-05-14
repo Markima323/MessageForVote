@@ -41,7 +41,7 @@ import asyncio
 import threading
 import time
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List, Callable
 
 import tkinter as tk
@@ -73,10 +73,12 @@ from playwright_stealth import Stealth  # playwright_stealth 2.0.x API
 class Config:
     proxy_api_url: str = ""                     # GUI: 代理 API URL
     proxy_protocol: str = "http"                # GUI: 代理协议 (combobox)
-    target_character_name: str = ""             # GUI: 目标角色名 (如 白厄)
-    target_button_index: int = 0                # GUI: 或 按钮序号 (0-70)
+    target_character_name: str = ""             # GUI: 目标角色名 (如 白厄) [legacy]
+    target_character_names: List[str] = field(default_factory=list)  # GUI 多选：本轮要投的所有角色
+    target_button_index: int = 0                # GUI: 或 按钮序号 (0-70) [legacy]
     concurrency: int = 6                        # GUI: 并发数 (3×2 平铺时正好)
-    total_votes: int = 200                      # GUI: 总投票次数
+    total_votes: int = 200                      # GUI: 总投票轮次（每轮 = 选中的所有角色 + 评分 + 截图）
+    debug_mode: bool = False                    # GUI: 调试模式（一轮结束后保留页面，不进入下一轮）
     browser_engine: str = "chromium"            # GUI: 浏览器引擎 (combobox: chromium / webkit)
     browser_path: str = (
         r"C:\Program Files (x86)\Microsoft Edge\Application\msedge.exe"
@@ -512,10 +514,15 @@ class Voter:
             self.log(f"[INFO] [{vote_id}] 窗口排布失败 (slot {slot}): "
                      f"{type(e).__name__}: {str(e)[:120]}")
 
-    async def _new_context(self, browser: Browser, proxy: dict) -> BrowserContext:
+    async def _new_context(self, browser: Browser,
+                           proxy: Optional[dict]) -> BrowserContext:
         # [STRONG] proxy is per-context (Playwright supports this since 1.29);
         # this is the only way the "page pool" can rotate IPs across votes.
-        ctx = await browser.new_context(proxy={"server": proxy["server"]})
+        # proxy=None → use local IP (debug mode bypasses the proxy pool).
+        if proxy and proxy.get("server"):
+            ctx = await browser.new_context(proxy={"server": proxy["server"]})
+        else:
+            ctx = await browser.new_context()
         # [HARD] playwright_stealth is bundled → applied per context
         await Stealth().apply_stealth_async(ctx)
 
@@ -575,204 +582,496 @@ class Voter:
 
     async def _attempt(self, ctx: BrowserContext, vote_id: int,
                        slot: int = 0) -> bool:
-        """One vote attempt. Returns True iff the confirm modal closed
-        successfully (which the page treats as a successful vote).
-
-        Race-based wait: after clicking .vote-btn, EITHER the Aliyun
-        captcha pops up OR the confirm modal appears directly (when the
-        site's risk model deems the request low-risk). The previous
-        version's serial probe could miss the modal if captcha probed
-        slow + modal opened after the probe timeout. This races the two.
+        """One round: vote for every selected character + send rating +
+        send tier-list snapshot. First vote goes through the UI so the
+        captcha can fire; the rest are POSTed via fetch() in the same
+        page (same session/cookies/IP), which is much faster.
         """
         page = await ctx.new_page()
-        # Tile the window into a slot so multiple concurrent attempts are
-        # visible side-by-side (3 cols × 2 rows for concurrency=6).
-        # window.moveTo / window.resizeTo are blocked by Chrome on regular
-        # windows, so we use CDP (Browser.setWindowBounds) instead — that
-        # is the browser-level API and isn't subject to JS sandbox.
         if not self.cfg.headless:
             await self._tile_window_cdp(ctx, page, slot, vote_id)
         try:
             await page.goto(self.VOTE_PAGE_URL, wait_until="domcontentloaded",
                             timeout=NAVIGATE_TIMEOUT_MS)
-            card = await self._locate_card(page)
+
+            # Build the target list. Prefer the multi-select field; fall
+            # back to the legacy single-name field so old configs still work.
+            names = [n.strip() for n in (self.cfg.target_character_names or [])
+                     if n and n.strip()]
+            if not names and self.cfg.target_character_name.strip():
+                names = [self.cfg.target_character_name.strip()]
+            if not names:
+                self.log(f"[ERROR] [{vote_id}] 未选中任何目标角色")
+                return False
+
+            name_to_data = await self._read_character_data(page)
+            if not name_to_data:
+                self.log(f"[ERROR] [{vote_id}] characterData 不可读，放弃本轮")
+                return False
+
+            targets: List[tuple] = []  # (name, vid)
+            for n in names:
+                info = name_to_data.get(n)
+                if not info or info.get("id") is None:
+                    self.log(f"[WARN] [{vote_id}] 角色 '{n}' 不在 characterData，跳过")
+                    continue
+                targets.append((n, info["id"]))
+            if not targets:
+                self.log(f"[ERROR] [{vote_id}] 所有目标角色都没匹配到 vid")
+                return False
+
+            self.log(f"[INFO] [{vote_id}] 本轮目标 {len(targets)} 个: "
+                     f"{[f'{n}({v})' for n, v in targets]}")
+
+            # ---- first vote via UI: triggers captcha popup if needed ----
+            first_name = targets[0][0]
+            try:
+                ok_first = await self._first_vote_via_ui(page, vote_id, first_name)
+            except Exception as e:
+                self.log(f"[WARN] [{vote_id}] 第一票 UI 流程异常: "
+                         f"{type(e).__name__}: {str(e)[:80]}")
+                ok_first = False
+
+            # ---- remaining votes via fetch() (only if first vote was confirmed) ----
+            if ok_first:
+                for name, vid in targets[1:]:
+                    await self._fetch_vote(page, vote_id, name, vid)
+
+            # ---- 评分 → 截图 → 点赞 (replays 418.js lines 56-184) ----
+            # Always fire these regardless of whether the first vote's success
+            # modal was detected — server often accepts the vote even when the
+            # GUI detection times out, and the user explicitly asks for parity
+            # with 418.js (which sends Top + SaveTierList unconditionally).
+            zan_id = await self._fetch_top(page, vote_id)
+            await self._fetch_tier_list(page, vote_id, targets, name_to_data)
+            if zan_id is not None:
+                await self._fetch_zan(page, vote_id, zan_id)
+            else:
+                self.log(f"[INFO] [{vote_id}] 评分接口未返回 id，跳过点赞")
+
+            if ok_first:
+                self.log(f"[OK] [{vote_id}] 本轮全部请求已发送")
+            else:
+                self.log(f"[WARN] [{vote_id}] 第一票未识别成功，"
+                         f"评分+截图分享已发送")
+            return ok_first
+        finally:
+            if self.cfg.debug_mode:
+                self.log(f"[INFO] [{vote_id}] 调试模式：保留页面供检查")
+            else:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+
+    # =========================================================================
+    # Round-level helpers — new in the API-first flow
+    # =========================================================================
+    async def _read_character_data(self, page: Page) -> dict:
+        """Return {name: {id,image,gender,...}} for every character.
+
+        character.js declares the array as `const characterData = [...]` at
+        script scope, so it is NOT reachable via window.characterData. We
+        fetch the source file via page.request (which reuses the context's
+        proxy + cookies but bypasses CORS, unlike in-page fetch), slice
+        out the JSON-shaped array between the first `[` and the matching
+        closing `]`, and parse it in Python.
+        """
+        urls = [
+            "https://static.appoint.icu/Railvote/character.js?v=3",
+            "https://static.appoint.icu/Railvote/character.js",
+        ]
+        text = None
+        for u in urls:
+            try:
+                resp = await page.request.get(u, timeout=15_000)
+                if resp.ok:
+                    body = await resp.text()
+                    if body and "name" in body:
+                        text = body
+                        break
+            except Exception as e:
+                self.log(f"[WARN] 抓 {u} 失败: {type(e).__name__}: {str(e)[:80]}")
+                continue
+        if not text:
+            self.log("[WARN] 读取 character.js 失败：所有 URL 都拿不到")
+            return {}
+        i = text.find("[")
+        j = text.rfind("]")
+        if i < 0 or j <= i:
+            self.log("[WARN] character.js 里没找到 [ ... ] 数组")
+            return {}
+        try:
+            raw = json.loads(text[i:j + 1])
+        except Exception as e:
+            self.log(f"[WARN] character.js JSON 解析失败: {type(e).__name__}: {str(e)[:80]}")
+            return {}
+        out = {}
+        for item in raw or []:
+            if isinstance(item, dict) and item.get("name"):
+                out[item["name"]] = item
+        if not out:
+            self.log("[WARN] character.js 解析后为空，可能 CDN 返回格式变了")
+        return out
+
+    async def _fetch_vote(self, page: Page, vote_id: int,
+                          name: str, vid: int) -> bool:
+        """POST /Active2551/Vote via fetch — request literally matches 418.js."""
+        try:
+            result = await page.evaluate(
+                """async (vid) => {
+                    const r = await fetch("https://www.starrailawards.com/Active2551/Vote", {
+                        "headers": {
+                            "accept": "*/*",
+                            "accept-language": "en-US,en;q=0.9",
+                            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                            "priority": "u=1, i",
+                            "sec-fetch-dest": "empty",
+                            "sec-fetch-mode": "cors",
+                            "sec-fetch-site": "same-origin",
+                            "x-requested-with": "XMLHttpRequest"
+                        },
+                        "referrer": "https://www.starrailawards.com/Vote2026/index.html",
+                        "body": "gp=&vid=" + vid,
+                        "method": "POST",
+                        "mode": "cors",
+                        "credentials": "include"
+                    });
+                    let text = "";
+                    try { text = await r.text(); } catch (e) {}
+                    return { status: r.status, text: text.slice(0, 200) };
+                }""",
+                vid,
+            )
+            status = result.get("status") if isinstance(result, dict) else None
+            body = (result.get("text") or "") if isinstance(result, dict) else ""
+            ok = status == 200
+            tag = "OK" if ok else "WARN"
+            self.log(f"[{tag}] [{vote_id}] fetch 投票 {name}(vid={vid}) "
+                     f"status={status} body={body[:80]}")
+            return ok
+        except Exception as e:
+            self.log(f"[WARN] [{vote_id}] fetch 投票 {name} 异常: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+            return False
+
+    async def _fetch_top(self, page: Page, vote_id: int) -> Optional[int]:
+        """POST /Active2551/Top — request literally matches 418.js.
+        Returns the score-record id from the response (used by /Zan), or None."""
+        try:
+            result = await page.evaluate(
+                """async () => {
+                    const r = await fetch("https://www.starrailawards.com/Active2551/Top", {
+                        "headers": {
+                            "accept": "*/*",
+                            "accept-language": "en-US,en;q=0.9",
+                            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                            "priority": "u=1, i",
+                            "sec-fetch-dest": "empty",
+                            "sec-fetch-mode": "cors",
+                            "sec-fetch-site": "same-origin",
+                            "x-requested-with": "XMLHttpRequest"
+                        },
+                        "referrer": "https://www.starrailawards.com/Vote2026/index.html",
+                        "body": "tp=2&st=206&score=10&msg=",
+                        "method": "POST",
+                        "mode": "cors",
+                        "credentials": "include"
+                    });
+                    let text = "";
+                    try { text = await r.text(); } catch (e) {}
+                    return { status: r.status, text: text };
+                }"""
+            )
+            body = result.get("text") or ""
+            self.log(f"[INFO] [{vote_id}] fetch 评分 status={result.get('status')} "
+                     f"body={body[:120]}")
+            # 评分成功后服务器返回的 id 用于 /Zan 点赞
+            # 实测路径: data.model.id（评分记录 ID，递增）
+            try:
+                obj = json.loads(body)
+                if isinstance(obj, dict):
+                    data = obj.get("data")
+                    if isinstance(data, dict):
+                        model = data.get("model")
+                        if isinstance(model, dict) and isinstance(model.get("id"), int):
+                            return model["id"]
+                        for k in ("id", "Id", "ID"):
+                            if isinstance(data.get(k), int):
+                                return data[k]
+                    for k in ("id", "Id", "ID"):
+                        if isinstance(obj.get(k), int):
+                            return obj[k]
+            except Exception:
+                pass
+            return None
+        except Exception as e:
+            self.log(f"[WARN] [{vote_id}] fetch 评分异常: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+            return None
+
+    async def _fetch_zan(self, page: Page, vote_id: int, zan_id: int) -> None:
+        """POST /Active2551/Zan — 点赞，request literally matches 418.js."""
+        try:
+            result = await page.evaluate(
+                """async (id) => {
+                    const r = await fetch("https://www.starrailawards.com/Active2551/Zan", {
+                        "headers": {
+                            "accept": "*/*",
+                            "accept-language": "en-US,en;q=0.9",
+                            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                            "priority": "u=1, i",
+                            "sec-fetch-dest": "empty",
+                            "sec-fetch-mode": "cors",
+                            "sec-fetch-site": "same-origin",
+                            "x-requested-with": "XMLHttpRequest"
+                        },
+                        "referrer": "https://www.starrailawards.com/Vote2026/index.html",
+                        "body": "id=" + id,
+                        "method": "POST",
+                        "mode": "cors",
+                        "credentials": "include"
+                    });
+                    let text = "";
+                    try { text = await r.text(); } catch (e) {}
+                    return { status: r.status, text: text.slice(0, 200) };
+                }""",
+                zan_id,
+            )
+            self.log(f"[INFO] [{vote_id}] fetch 点赞 id={zan_id} "
+                     f"status={result.get('status')} "
+                     f"body={(result.get('text') or '')[:80]}")
+        except Exception as e:
+            self.log(f"[WARN] [{vote_id}] fetch 点赞异常: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+
+    async def _fetch_tier_list(self, page: Page, vote_id: int,
+                                targets: List[tuple],
+                                name_to_data: dict) -> None:
+        """POST /Active2551/SaveTierList — the "snapshot share" call.
+        Puts the selected characters in the S tier and leaves the rest empty.
+        """
+        s_items = []
+        for name, _ in targets:
+            info = name_to_data.get(name) or {}
+            s_items.append({
+                "id": info.get("id"),
+                "name": name,
+                "image": info.get("image", ""),
+                "gender": info.get("gender", "male"),
+                "type": "char",
+            })
+        snapshot = {"S": s_items, "A": [], "B": [], "C": [], "D": []}
+        try:
+            result = await page.evaluate(
+                """async (snapshot) => {
+                    const r = await fetch("https://www.starrailawards.com/Active2551/SaveTierList", {
+                        "headers": {
+                            "accept": "*/*",
+                            "accept-language": "en-US,en;q=0.9",
+                            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                            "priority": "u=1, i",
+                            "sec-fetch-dest": "empty",
+                            "sec-fetch-mode": "cors",
+                            "sec-fetch-site": "same-origin",
+                            "x-requested-with": "XMLHttpRequest"
+                        },
+                        "referrer": "https://www.starrailawards.com/Vote2026/index.html",
+                        "body": "snapshot=" + encodeURIComponent(JSON.stringify(snapshot)),
+                        "method": "POST",
+                        "mode": "cors",
+                        "credentials": "include"
+                    });
+                    let text = "";
+                    try { text = await r.text(); } catch (e) {}
+                    return { status: r.status, text: text.slice(0, 200) };
+                }""",
+                snapshot,
+            )
+            self.log(f"[INFO] [{vote_id}] fetch 截图分享 "
+                     f"status={result.get('status')} "
+                     f"body={(result.get('text') or '')[:80]}")
+        except Exception as e:
+            self.log(f"[WARN] [{vote_id}] fetch 截图分享异常: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+
+    async def _reload_and_reclick_named(self, page: Page, vote_id: int,
+                                         target_name: str) -> bool:
+        """Like _reload_and_reclick but for an explicit name (no cfg lookup)."""
+        try:
+            await page.reload(wait_until="domcontentloaded",
+                              timeout=NAVIGATE_TIMEOUT_MS)
+            card = page.locator(self.CANDIDATE_CARD_SELECTOR,
+                                has_text=target_name).first
             await card.scroll_into_view_if_needed()
             await card.locator(self.VOTE_BUTTON_SELECTOR).click()
+            return True
+        except Exception as e:
+            self.log(f"[WARN] [{vote_id}] 刷新重试失败: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+            return False
 
-            # ---- two-phase wait with stuck-detection recovery ----
-            # Phase 1: wait STUCK_DETECT_MS for captcha-or-modal.
-            # If neither appears, page.reload() + re-click vote-btn.
-            # Phase 2: wait another STUCK_DETECT_MS.
-            # Total budget: 2 × STUCK_DETECT_MS (= 3 min by default).
-            self.log(f"[INFO] [{vote_id}] 等待 captcha 或确认模态出现 "
-                     f"(每阶段 {STUCK_DETECT_MS // 1000} 秒, 共 2 阶段)")
-            outcome = await self._wait_for_captcha_or_modal(
-                page, STUCK_DETECT_MS)
+    async def _first_vote_via_ui(self, page: Page, vote_id: int,
+                                  target_name: str) -> bool:
+        """The captcha-bearing first-vote flow, parameterized by name.
+        Extracted from the legacy _attempt body — same logic, except the
+        card is located by an explicit name instead of cfg fallback.
+        """
+        try:
+            card = page.locator(self.CANDIDATE_CARD_SELECTOR,
+                                has_text=target_name).first
+            # fire the on_resolved callback (UX: remembers DOM index)
+            try:
+                idx = await card.evaluate(
+                    "el => Array.from("
+                    "document.querySelectorAll('.character-card')"
+                    ").indexOf(el)"
+                )
+                if isinstance(idx, int) and idx >= 0:
+                    self.on_resolved(target_name, idx)
+            except Exception:
+                pass
+            await card.scroll_into_view_if_needed()
+            await card.locator(self.VOTE_BUTTON_SELECTOR).click()
+        except Exception as e:
+            self.log(f"[ERROR] [{vote_id}] 定位/点击 {target_name} 失败: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+            return False
+
+        # ---- two-phase wait with stuck-detection recovery ----
+        self.log(f"[INFO] [{vote_id}] 等待 captcha 或确认模态出现 "
+                 f"(每阶段 {STUCK_DETECT_MS // 1000} 秒, 共 2 阶段)")
+        outcome = await self._wait_for_captcha_or_modal(page, STUCK_DETECT_MS)
+        if outcome is None:
+            self.log(f"[INFO] [{vote_id}] 第 1 阶段超时，刷新页面重试")
+            if not await self._reload_and_reclick_named(page, vote_id, target_name):
+                return False
+            outcome = await self._wait_for_captcha_or_modal(page, STUCK_DETECT_MS)
             if outcome is None:
-                self.log(f"[INFO] [{vote_id}] 第 1 阶段超时，刷新页面重试")
-                if not await self._reload_and_reclick(page, vote_id):
-                    return False
-                outcome = await self._wait_for_captcha_or_modal(
-                    page, STUCK_DETECT_MS)
-                if outcome is None:
-                    self.log(f"[INFO] [{vote_id}] 刷新后仍无 captcha/确认框，放弃")
-                    return False
+                self.log(f"[INFO] [{vote_id}] 刷新后仍无 captcha/确认框，放弃")
+                return False
 
-            if outcome == "captcha":
-                self.log(f"[INFO] [{vote_id}] 弹出 captcha，进入处理")
-                # Loop: solve captcha → wait for confirm modal. If the
-                # modal doesn't show up (typical after a wrong slide
-                # consumed the captcha without firing the action), click
-                # the vote button again to trigger a fresh captcha. Up
-                # to MAX_CAPTCHA_CYCLES iterations.
-                MAX_CAPTCHA_CYCLES = 5
-                got_modal = False
-                for cycle in range(MAX_CAPTCHA_CYCLES):
+        if outcome == "captcha":
+            self.log(f"[INFO] [{vote_id}] 弹出 captcha，进入处理")
+            MAX_CAPTCHA_CYCLES = 5
+            got_modal = False
+            for cycle in range(MAX_CAPTCHA_CYCLES):
+                try:
+                    await self._handle_captcha(page)
+                except NotImplementedError as e:
+                    self.log(f"[WARN] [{vote_id}] captcha 处理未实现: {e}")
+                    return False
+                try:
+                    await page.locator(self.CONFIRM_MODAL_SELECTOR).filter(
+                        has_text=self.CONFIRM_TITLE_TEXT
+                    ).first.wait_for(state="visible",
+                                     timeout=CONFIRM_MODAL_TIMEOUT_MS)
+                    got_modal = True
+                    break
+                except Exception:
+                    pass
+                self.log(f"[INFO] [{vote_id}] 验证后无确认模态，"
+                         f"自动再点投票按钮 (第 {cycle + 1} 次)")
+                try:
+                    card = page.locator(self.CANDIDATE_CARD_SELECTOR,
+                                        has_text=target_name).first
+                    await card.scroll_into_view_if_needed()
+                    await card.locator(self.VOTE_BUTTON_SELECTOR).click()
+                except Exception as e:
+                    self.log(f"[WARN] [{vote_id}] 重新点击投票按钮失败: "
+                             f"{type(e).__name__}")
+                    return False
+                try:
+                    await page.locator(self.CAPTCHA_MODAL_SELECTOR
+                        ).first.wait_for(state="visible",
+                                         timeout=CAPTCHA_APPEAR_TIMEOUT_MS)
+                except Exception:
                     try:
-                        await self._handle_captcha(page)
-                    except NotImplementedError as e:
-                        self.log(f"[WARN] [{vote_id}] captcha 处理未实现: {e}")
-                        return False
-                    # short wait for confirm modal — page-internal transition
-                    try:
-                        await page.locator(self.CONFIRM_MODAL_SELECTOR).filter(
+                        await page.locator(
+                            self.CONFIRM_MODAL_SELECTOR
+                        ).filter(
                             has_text=self.CONFIRM_TITLE_TEXT
                         ).first.wait_for(state="visible",
                                          timeout=CONFIRM_MODAL_TIMEOUT_MS)
                         got_modal = True
                         break
                     except Exception:
-                        pass
-                    # No modal — re-click vote button to retry the verify path
-                    self.log(f"[INFO] [{vote_id}] 验证后无确认模态，"
-                             f"自动再点投票按钮 (第 {cycle + 1} 次)")
-                    try:
-                        card = await self._locate_card(page)
-                        await card.scroll_into_view_if_needed()
-                        await card.locator(self.VOTE_BUTTON_SELECTOR).click()
-                    except Exception as e:
-                        self.log(f"[WARN] [{vote_id}] 重新点击投票按钮失败: "
-                                 f"{type(e).__name__}")
+                        self.log(f"[INFO] [{vote_id}] 重点后既没 captcha 也没模态")
                         return False
-                    # wait for next captcha (or modal directly) before next iter
-                    try:
-                        await page.locator(self.CAPTCHA_MODAL_SELECTOR
-                            ).first.wait_for(
-                                state="visible",
-                                timeout=CAPTCHA_APPEAR_TIMEOUT_MS)
-                    except Exception:
-                        # captcha didn't pop — maybe modal did?
-                        try:
-                            await page.locator(
-                                self.CONFIRM_MODAL_SELECTOR
-                            ).filter(
-                                has_text=self.CONFIRM_TITLE_TEXT
-                            ).first.wait_for(state="visible",
-                                             timeout=CONFIRM_MODAL_TIMEOUT_MS)
-                            got_modal = True
-                            break
-                        except Exception:
-                            self.log(f"[INFO] [{vote_id}] 重点后既没 captcha 也没模态")
-                            return False
-                if not got_modal:
-                    self.log(f"[WARN] [{vote_id}] {MAX_CAPTCHA_CYCLES} 次循环"
-                             f"仍未拿到确认模态，放弃")
-                    return False
-            else:
-                # confirm modal won the race — no captcha this round
-                self.log(f"[INFO] [{vote_id}] 未弹 captcha，跳过")
-
-            # ---- click 确认投票 ----
-            # First, make sure the captcha mask animation has fully cleared
-            # — otherwise its still-fading overlay swallows the click on the
-            # confirm button below it (Playwright's actionability check then
-            # times out and retry kicks in).
-            try:
-                await page.locator(".mask-show").first.wait_for(
-                    state="hidden", timeout=3_000)
-            except Exception:
-                pass
-
-            self.log(f"[INFO] [{vote_id}] 准备点击 '确认投票'")
-            click_target = (
-                page.locator(self.CONFIRM_BUTTON_SELECTOR)
-                .filter(has_text="确认投票")
-                .first
-            )
-            clicked = False
-            # try a normal click first; if Playwright's actionability check
-            # times out (e.g. element animating, transient mask), retry with
-            # force=True which skips visibility/stability gates.
-            for label, fn in [
-                ("normal", lambda: click_target.click(timeout=8_000)),
-                ("force",  lambda: click_target.click(timeout=8_000, force=True)),
-                ("text-fallback",
-                 lambda: page.get_by_text("确认投票").first.click(
-                     timeout=8_000, force=True)),
-            ]:
-                try:
-                    await fn()
-                    clicked = True
-                    self.log(f"[INFO] [{vote_id}] 点击成功 ({label})")
-                    break
-                except Exception as e:
-                    self.log(f"[WARN] [{vote_id}] 点击失败 ({label}): {type(e).__name__}")
-            if not clicked:
+            if not got_modal:
+                self.log(f"[WARN] [{vote_id}] {MAX_CAPTCHA_CYCLES} 次循环"
+                         f"仍未拿到确认模态，放弃")
                 return False
+        else:
+            self.log(f"[INFO] [{vote_id}] 未弹 captcha，跳过")
 
-            # ---- success modal: "成功投票给X，剩余票数 N" ----
-            # Use a broad text-based locator: any visible element whose text
-            # contains "成功投票" or "剩余票数". Class-based locators were
-            # too narrow and may miss the popup if the page changes class
-            # names between rounds.
-            success_modal = page.get_by_text("成功投票").first
-            self.log(f"[INFO] [{vote_id}] 等待成功提示出现 "
-                     f"(最多 {SUCCESS_MODAL_TIMEOUT_MS // 1000} 秒, 调试期)")
+        # ---- click 确认投票 ----
+        try:
+            await page.locator(".mask-show").first.wait_for(
+                state="hidden", timeout=3_000)
+        except Exception:
+            pass
+
+        self.log(f"[INFO] [{vote_id}] 准备点击 '确认投票'")
+        click_target = (
+            page.locator(self.CONFIRM_BUTTON_SELECTOR)
+            .filter(has_text="确认投票")
+            .first
+        )
+        clicked = False
+        for label, fn in [
+            ("normal", lambda: click_target.click(timeout=8_000)),
+            ("force",  lambda: click_target.click(timeout=8_000, force=True)),
+            ("text-fallback",
+             lambda: page.get_by_text("确认投票").first.click(
+                 timeout=8_000, force=True)),
+        ]:
             try:
-                await success_modal.wait_for(state="visible",
-                                             timeout=SUCCESS_MODAL_TIMEOUT_MS)
+                await fn()
+                clicked = True
+                self.log(f"[INFO] [{vote_id}] 点击成功 ({label})")
+                break
             except Exception as e:
-                # Surface the ACTUAL error so we can tell timeout vs page-
-                # detached vs network-closed apart, and dump a snapshot of
-                # what was actually on screen at failure time.
-                err_type = type(e).__name__
-                err_msg = str(e).splitlines()[0][:160] if str(e) else ""
-                self.log(f"[WARN] [{vote_id}] 等成功提示失败: {err_type}: {err_msg}")
-                await self._save_debug_snapshot(page, vote_id)
-                return False
+                self.log(f"[WARN] [{vote_id}] 点击失败 ({label}): {type(e).__name__}")
+        if not clicked:
+            return False
 
-            # Log the actual server-returned text — usually contains 剩余票数,
-            # which is useful to know whether the session still has quota.
-            try:
-                text = (await success_modal.inner_text()).strip().replace("\n", " ")
-                self.log(f"[OK] [{vote_id}] {text[:120]}")
-            except Exception:
-                self.log(f"[OK] [{vote_id}] 投票成功")
+        # ---- success modal ----
+        success_modal = page.get_by_text("成功投票").first
+        self.log(f"[INFO] [{vote_id}] 等待成功提示出现 "
+                 f"(最多 {SUCCESS_MODAL_TIMEOUT_MS // 1000} 秒)")
+        try:
+            await success_modal.wait_for(state="visible",
+                                         timeout=SUCCESS_MODAL_TIMEOUT_MS)
+        except Exception as e:
+            err_type = type(e).__name__
+            err_msg = str(e).splitlines()[0][:160] if str(e) else ""
+            self.log(f"[WARN] [{vote_id}] 等成功提示失败: {err_type}: {err_msg}")
+            await self._save_debug_snapshot(page, vote_id)
+            return False
 
-            # Click 确定 to dismiss the success modal
-            ok_btn = page.locator(
-                ".custom-alert-button", has_text="确定"
-            ).first
-            for label, fn in [
-                ("normal", lambda: ok_btn.click(timeout=5_000)),
-                ("force",  lambda: ok_btn.click(timeout=5_000, force=True)),
-                ("text-fallback",
-                 lambda: page.get_by_text("确定", exact=True).first.click(
-                     timeout=5_000, force=True)),
-            ]:
-                try:
-                    await fn()
-                    self.log(f"[INFO] [{vote_id}] 已关闭成功提示 ({label})")
-                    break
-                except Exception as e:
-                    self.log(f"[WARN] [{vote_id}] 关闭成功提示失败 ({label}): "
-                             f"{type(e).__name__}")
-            return True
-        finally:
+        try:
+            text = (await success_modal.inner_text()).strip().replace("\n", " ")
+            self.log(f"[OK] [{vote_id}] {text[:120]}")
+        except Exception:
+            self.log(f"[OK] [{vote_id}] 投票成功")
+
+        ok_btn = page.locator(".custom-alert-button", has_text="确定").first
+        for label, fn in [
+            ("normal", lambda: ok_btn.click(timeout=5_000)),
+            ("force",  lambda: ok_btn.click(timeout=5_000, force=True)),
+            ("text-fallback",
+             lambda: page.get_by_text("确定", exact=True).first.click(
+                 timeout=5_000, force=True)),
+        ]:
             try:
-                await page.close()
-            except Exception:
-                pass
+                await fn()
+                self.log(f"[INFO] [{vote_id}] 已关闭成功提示 ({label})")
+                break
+            except Exception as e:
+                self.log(f"[WARN] [{vote_id}] 关闭成功提示失败 ({label}): "
+                         f"{type(e).__name__}")
+        return True
 
     async def _handle_captcha(self, page: Page):
         """[USER-IMPLEMENTED] 半人工模式：等用户手动滑滑块。
@@ -801,20 +1100,27 @@ class Voter:
                 return False
             ip_port = proxy["_id"]
             ctx = await self._new_context(browser, proxy)
+            ok = False
             try:
                 ok = await self._attempt(ctx, vote_id, slot=slot)
                 if ok:
                     return True
                 # [HARD] failed proxy gets blacklisted (observed pool drop)
-                self.proxies.blacklist(ip_port)
+                if ip_port:
+                    self.proxies.blacklist(ip_port)
             except Exception as e:
                 self.log(f"[ERROR] [{vote_id}] {e!r}")
-                self.proxies.blacklist(ip_port)
+                if ip_port:
+                    self.proxies.blacklist(ip_port)
             finally:
-                try:
-                    await ctx.close()
-                except Exception:
-                    pass
+                # In debug mode, keep the context (and its page) alive on a
+                # successful round so the user can inspect the page state.
+                # The runner closes the browser itself on Stop.
+                if not (self.cfg.debug_mode and ok):
+                    try:
+                        await ctx.close()
+                    except Exception:
+                        pass
         return False
 
 
@@ -925,8 +1231,17 @@ class VoteRunner:
                 self.log(f"[INFO] page pool 就绪：{self.cfg.concurrency} 个 context")
 
                 voter = Voter(self.cfg, proxies, self.log, self.on_resolved)
-                total = self.cfg.total_votes
-                concurrency = self.cfg.concurrency
+                # Debug mode = force exactly one round, single-threaded, then
+                # idle until the user clicks Stop. This lets the browser
+                # window stay open for inspection after the round finishes.
+                if self.cfg.debug_mode:
+                    total = 1
+                    concurrency = 1
+                    self.log("[INFO] 调试模式：单线程跑一轮，结束后保留页面，"
+                             "按 '停止' 退出")
+                else:
+                    total = self.cfg.total_votes
+                    concurrency = self.cfg.concurrency
 
                 # PIPELINED CONCURRENCY: each slot is an independent worker
                 # that grabs the next vote_id atomically and immediately
@@ -966,6 +1281,16 @@ class VoteRunner:
                 await asyncio.gather(*self._current_tasks,
                                      return_exceptions=True)
                 self._current_tasks = []
+
+                # Debug mode: park here until the user requests stop, so
+                # the browser window with its open page stays visible.
+                if self.cfg.debug_mode and not self._stop.is_set():
+                    self.set_status("调试模式：页面保留中，按 '停止' 退出")
+                    while not self._stop.is_set():
+                        try:
+                            await asyncio.sleep(0.5)
+                        except asyncio.CancelledError:
+                            break
             finally:
                 self._browser = None
                 try:
@@ -981,9 +1306,18 @@ class VoteRunner:
                 asyncio.run(self._async_main())
             except Exception:
                 self.log(traceback.format_exc())
-        t = threading.Thread(target=_entry, daemon=True)
-        t.start()
-        return t
+            finally:
+                # Always re-enable Start/Stop buttons, even if _async_main raised.
+                try:
+                    self.set_status("已停止" if self._stop.is_set() else "已完成")
+                except Exception:
+                    pass
+        self._thread = threading.Thread(target=_entry, daemon=True)
+        self._thread.start()
+        return self._thread
+
+    def is_alive(self) -> bool:
+        return getattr(self, "_thread", None) is not None and self._thread.is_alive()
 
 
 # =============================================================================
@@ -1016,6 +1350,42 @@ def save_config(cfg: Config):
                            default_flow_style=False, sort_keys=False)
     except Exception:
         pass
+
+
+CANDIDATES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "candidates.json")
+
+
+def load_candidate_names() -> List[str]:
+    """Load the current round's character names for the GUI multi-select.
+    Falls back to the static snapshot in extracted/page_probe_v2/character.js
+    so the listbox still has something even if candidates.json is missing.
+    """
+    if os.path.isfile(CANDIDATES_FILE):
+        try:
+            with open(CANDIDATES_FILE, "r", encoding="utf-8") as f:
+                snap = json.load(f)
+            names = [e.get("name") for e in (snap.get("entries") or [])]
+            names = [n for n in names if n]
+            if names:
+                return names
+        except Exception:
+            pass
+    here = os.path.dirname(os.path.abspath(__file__))
+    char_js = os.path.normpath(os.path.join(
+        here, "..", "extracted", "page_probe_v2", "character.js"))
+    if os.path.isfile(char_js):
+        try:
+            import re
+            with open(char_js, "r", encoding="utf-8") as f:
+                text = f.read()
+            # extract name fields without trying to parse JS proper
+            names = re.findall(r'"name"\s*:\s*"([^"]+)"', text)
+            if names:
+                return names
+        except Exception:
+            pass
+    return []
 
 
 # Common chromium-family install locations on Windows.  Chrome is
@@ -1078,12 +1448,21 @@ class App(tk.Tk):
         # Edge, Brave, and bundled chromium-1217 all as the same engine.
         self.var_browser     = tk.StringVar(value=cfg.browser_path)
         self.var_headless    = tk.BooleanVar(value=cfg.headless)
+        self.var_debug       = tk.BooleanVar(value=cfg.debug_mode)
         self.var_captcha_x   = tk.IntVar(value=cfg.captcha_offset_x)
         self.var_captcha_y   = tk.IntVar(value=cfg.captcha_offset_y)
         self.var_captcha_hint = tk.StringVar(
             value=self._format_captcha_hint(cfg.captcha_offset_x,
                                             cfg.captcha_offset_y))
         self.var_status      = tk.StringVar(value="就绪")
+
+        # candidates for the multi-select listbox
+        self._candidate_names: List[str] = load_candidate_names()
+        # initial selection: prefer the saved list, fall back to legacy single
+        legacy_single = cfg.target_character_name.strip()
+        self._initial_selection: set = set(cfg.target_character_names or [])
+        if not self._initial_selection and legacy_single:
+            self._initial_selection.add(legacy_single)
 
         # persistent last-resolved cache (not surfaced as form fields, so
         # we hold them in self and weave them back into _collect_config)
@@ -1117,10 +1496,8 @@ class App(tk.Tk):
             ("代理 API URL:",                     "entry",    self.var_proxy_url),
             # [STRONG] options inferred from httpcore._{a,}sync.socks_proxy being bundled
             ("代理协议:",                         "combobox", self.var_proxy_proto, ["http", "socks5"]),
-            ("目标角色名 (如 白厄):",              "entry",    self.var_char_name),
-            ("或 按钮序号 (0-70, 留空名字时):",    "spinbox",  self.var_btn_index, (0, 70)),
-            ("并发数:",                           "spinbox",  self.var_concurrency, (1, 100)),
-            ("总投票次数:",                       "spinbox",  self.var_total, (1, 100_000)),
+            ("并发数（轮）:",                     "spinbox",  self.var_concurrency, (1, 100)),
+            ("总投票轮次:",                       "spinbox",  self.var_total, (1, 100_000)),
             ("浏览器路径（chrome.exe 或 msedge.exe）:", "entry", self.var_browser),
         ]
         for r, row in enumerate(rows):
@@ -1137,35 +1514,80 @@ class App(tk.Tk):
                     row=r, column=1, sticky="we", padx=8)
         cfg_frame.columnconfigure(1, weight=1)
 
+        r = len(rows)
+
+        # multi-select listbox for target characters
+        ttk.Label(cfg_frame, text="目标角色（多选，Ctrl/Shift 加选）:").grid(
+            row=r, column=0, sticky="nw", padx=8, pady=3)
+        lb_frame = ttk.Frame(cfg_frame)
+        lb_frame.grid(row=r, column=1, sticky="we", padx=8, pady=3)
+        self.lb_chars = tk.Listbox(
+            lb_frame, selectmode="extended", height=8, exportselection=False)
+        lb_scroll = ttk.Scrollbar(
+            lb_frame, orient="vertical", command=self.lb_chars.yview)
+        self.lb_chars.configure(yscrollcommand=lb_scroll.set)
+        self.lb_chars.pack(side="left", fill="both", expand=True)
+        lb_scroll.pack(side="right", fill="y")
+        for n in self._candidate_names:
+            self.lb_chars.insert("end", n)
+        for i, n in enumerate(self._candidate_names):
+            if n in self._initial_selection:
+                self.lb_chars.selection_set(i)
+        if self._candidate_names:
+            # ensure the first selection is visible
+            try:
+                first_sel = self.lb_chars.curselection()
+                if first_sel:
+                    self.lb_chars.see(first_sel[0])
+            except Exception:
+                pass
+        else:
+            ttk.Label(cfg_frame,
+                      text="（没找到 candidates.json / character.js — "
+                           "请先运行 list_candidates.py）",
+                      foreground="#b58900").grid(
+                row=r + 1, column=1, sticky="w", padx=8)
+            r += 1
+        r += 1
+
         ttk.Checkbutton(cfg_frame, text="无头模式（生产推荐）",
                         variable=self.var_headless).grid(
-            row=len(rows), column=1, sticky="w", padx=8, pady=3)
+            row=r, column=1, sticky="w", padx=8, pady=3)
+        r += 1
+        ttk.Checkbutton(cfg_frame,
+                        text="调试模式（一轮结束后保留页面，单线程）",
+                        variable=self.var_debug).grid(
+            row=r, column=1, sticky="w", padx=8, pady=3)
+        r += 1
 
         # captcha-offset sliders: dial in the popup position by hand when
         # CSS centering doesn't fully win against the vendor's SDK.
         ttk.Label(cfg_frame, text="验证码 X 偏移 (px):").grid(
-            row=len(rows) + 1, column=0, sticky="w", padx=8, pady=3)
+            row=r, column=0, sticky="w", padx=8, pady=3)
         ttk.Scale(cfg_frame, from_=-500, to=500, orient="horizontal",
                   variable=self.var_captcha_x,
                   command=lambda _v: self._on_captcha_offset_change()).grid(
-            row=len(rows) + 1, column=1, sticky="we", padx=8)
+            row=r, column=1, sticky="we", padx=8)
+        r += 1
 
         ttk.Label(cfg_frame, text="验证码 Y 偏移 (px):").grid(
-            row=len(rows) + 2, column=0, sticky="w", padx=8, pady=3)
+            row=r, column=0, sticky="w", padx=8, pady=3)
         ttk.Scale(cfg_frame, from_=-300, to=300, orient="horizontal",
                   variable=self.var_captcha_y,
                   command=lambda _v: self._on_captcha_offset_change()).grid(
-            row=len(rows) + 2, column=1, sticky="we", padx=8)
+            row=r, column=1, sticky="we", padx=8)
+        r += 1
 
         ttk.Label(cfg_frame, textvariable=self.var_captcha_hint,
                   foreground="#888").grid(
-            row=len(rows) + 3, column=0, columnspan=2, sticky="w",
+            row=r, column=0, columnspan=2, sticky="w",
             padx=8, pady=(0, 4))
+        r += 1
 
         # last-resolved hint (small grey text under the captcha sliders)
         ttk.Label(cfg_frame, textvariable=self.var_resolved_hint,
                   foreground="#888").grid(
-            row=len(rows) + 4, column=0, columnspan=2, sticky="w",
+            row=r, column=0, columnspan=2, sticky="w",
             padx=8, pady=(4, 6))
 
         # button row [HARD]: 开始 / 停止 / 就绪 status label
@@ -1188,14 +1610,24 @@ class App(tk.Tk):
         self.txt_log.tag_config("OK",    foreground="#2aa198")
 
     # -- callbacks --
+    def _selected_character_names(self) -> List[str]:
+        try:
+            idxs = self.lb_chars.curselection()
+        except Exception:
+            return []
+        return [self._candidate_names[i] for i in idxs
+                if 0 <= i < len(self._candidate_names)]
+
     def _collect_config(self) -> Config:
         return Config(
             proxy_api_url=self.var_proxy_url.get(),
             proxy_protocol=self.var_proxy_proto.get(),
             target_character_name=self.var_char_name.get(),
+            target_character_names=self._selected_character_names(),
             target_button_index=int(self.var_btn_index.get()),
             concurrency=int(self.var_concurrency.get()),
             total_votes=int(self.var_total.get()),
+            debug_mode=bool(self.var_debug.get()),
             browser_engine="chromium",  # field retained for config-yaml compat
             browser_path=self.var_browser.get(),
             headless=bool(self.var_headless.get()),
@@ -1273,9 +1705,26 @@ class App(tk.Tk):
         self.after(0, _do)
 
     def set_status(self, s: str):
-        self.after(0, lambda: self.var_status.set(s))
+        # Auto-reset the Start/Stop buttons when the runner reaches a terminal
+        # state. "已停止" / "已完成" are the only strings _async_main emits
+        # after the asyncio loop exits — using them as the signal avoids
+        # re-enabling Start while a runner is still winding down.
+        def _do():
+            self.var_status.set(s)
+            if s in ("已停止", "已完成"):
+                try:
+                    self.btn_start.configure(state="normal")
+                    self.btn_stop.configure(state="disabled")
+                except Exception:
+                    pass
+        self.after(0, _do)
 
     def on_start(self):
+        # Refuse to start if the previous runner hasn't fully wound down —
+        # otherwise two browser processes / event loops fight for resources.
+        if self.runner is not None and self.runner.is_alive():
+            self.log("[WARN] 上一轮还没退干净，再等一秒")
+            return
         cfg = self._collect_config()
         # save current form state so even a hard-kill won't lose it
         try:

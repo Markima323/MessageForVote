@@ -1,0 +1,139 @@
+{
+    "errCode": 0,
+    "msg": "Success",
+    "data": {
+        "logs": [
+            {
+                "is_left": true,
+                "vote_id": 39,
+                "vote_name": "罗刹",
+                "pk_times": 30731,
+                "same_times": 0.28,
+                "rank": 21
+            },
+            {
+                "is_left": true,
+                "vote_id": 39,
+                "vote_name": "罗刹",
+                "pk_times": 30674,
+                "same_times": 0.28,
+                "rank": 21
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385933,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385926,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385918,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385910,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385895,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385876,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385870,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385856,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385835,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385825,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385823,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 385803,
+                "same_times": 39.32,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 384819,
+                "same_times": 39.29,
+                "rank": 2
+            },
+            {
+                "is_left": false,
+                "vote_id": 51,
+                "vote_name": "砂金",
+                "pk_times": 384664,
+                "same_times": 39.28,
+                "rank": 2
+            }
+        ],
+        "rq": 0,
+        "pk_left": 39,
+        "pk_right": 57
+    }
+}
