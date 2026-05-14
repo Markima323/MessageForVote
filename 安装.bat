@@ -7,16 +7,30 @@ rem
 rem 支持 Python 3.13 / 3.12 / 3.11（按此顺序尝试，找到就用）。
 
 chcp 65001 >nul
-cd /d "%~dp0"
+pushd "%~dp0" 2>nul
+if errorlevel 1 (
+    echo [ERROR] 无法切换到脚本所在目录: %~dp0
+    set "EXITCODE=1"
+    goto :end
+)
 
-set "VENV=%~dp0reconstructed\.venv"
+set "VENV=reconstructed\.venv"
 set "PY=%VENV%\Scripts\python.exe"
-set "REQ=%~dp0reconstructed\requirements.txt"
+set "REQ=reconstructed\requirements.txt"
 
 set "EXITCODE=0"
 
+echo [INFO] 工作目录: %CD%
+echo [INFO] 检查依赖清单: %CD%\%REQ%
+
 if not exist "%REQ%" (
-    echo [ERROR] 没找到依赖清单: %REQ%
+    echo.
+    echo [ERROR] 没找到依赖清单: %CD%\%REQ%
+    echo [HINT]  当前目录下应该有一个 reconstructed 文件夹，
+    echo         其中包含 requirements.txt。
+    echo         请确认文件夹结构完整，或者把整个文件夹放到
+    echo         "纯英文路径"下（避免路径含中文/特殊字符）再试。
+    dir /b
     set "EXITCODE=1"
     goto :end
 )
@@ -47,7 +61,7 @@ if not exist "%VENV%" (
         goto :end
     )
 
-    echo [INFO] 用 Python %PYVER% 创建 venv 在 %VENV%
+    echo [INFO] 用 Python %PYVER% 创建 venv 在 %CD%\%VENV%
     py %PYVER% -m venv "%VENV%"
     if errorlevel 1 (
         echo [ERROR] 创建 venv 失败
@@ -55,7 +69,7 @@ if not exist "%VENV%" (
         goto :end
     )
 ) else (
-    echo [INFO] 复用现有 venv: %VENV%
+    echo [INFO] 复用现有 venv: %CD%\%VENV%
 )
 
 echo.
@@ -85,6 +99,8 @@ echo.
 echo ================================================
 echo  [DONE] 安装完成。现在可以双击 start.bat 启动。
 echo ================================================
+
+popd 2>nul
 
 :end
 echo.
