@@ -3,12 +3,12 @@ proxy_protocol: http
 target_character_name: 砂金
 target_character_names:
 - 卡芙卡
-- 素裳
-- 雪衣
+- 阿格莱雅
+- 翡翠
 target_button_index: 10
 concurrency: 1
-total_votes: 2000
-debug_mode: true
+total_votes: 20000
+debug_mode: false
 browser_engine: chromium
 browser_path: C:\Program Files\Google\Chrome\Application\chrome.exe
 headless: false

@@ -1517,21 +1517,42 @@ class VoteRunner:
 # in the bundle, so the original program creates one at runtime. We do
 # the same. File lives next to this script so it's easy to inspect/edit.
 # =============================================================================
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           "config.yaml")
+def _app_dir() -> str:
+    """Directory where user-editable files (config.yaml, candidates.json) live.
+    PyInstaller --onefile: sys.executable is the .exe; we use its folder so
+    settings survive across runs (the _MEIPASS temp dir is wiped on exit)."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _bundled(rel: str) -> str:
+    """Path to a read-only resource inside the PyInstaller bundle, or the
+    source-tree equivalent during dev."""
+    base = getattr(sys, "_MEIPASS", None) or _app_dir()
+    return os.path.join(base, rel)
+
+
+CONFIG_FILE = os.path.join(_app_dir(), "config.yaml")
+# Frozen-build fallback: a copy of config.yaml at build time is packed into
+# the bundle so a fresh exe loads the developer's last-known config on first
+# run (代理 URL, 浏览器路径, 偏移等). Subsequent runs save to CONFIG_FILE
+# next to the .exe and that takes precedence.
+CONFIG_FILE_BUNDLED = _bundled("config.yaml")
 
 
 def load_config() -> Config:
-    if not os.path.isfile(CONFIG_FILE):
-        return Config()
-    try:
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-        # only accept fields that exist on Config (defensive)
-        valid = {f.name for f in Config.__dataclass_fields__.values()}
-        return Config(**{k: v for k, v in data.items() if k in valid})
-    except Exception:
-        return Config()
+    valid = {f.name for f in Config.__dataclass_fields__.values()}
+    for path in (CONFIG_FILE, CONFIG_FILE_BUNDLED):
+        if not path or not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            return Config(**{k: v for k, v in data.items() if k in valid})
+        except Exception:
+            continue
+    return Config()
 
 
 def save_config(cfg: Config):
@@ -1544,25 +1565,31 @@ def save_config(cfg: Config):
         pass
 
 
-CANDIDATES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               "candidates.json")
+CANDIDATES_FILE = os.path.join(_app_dir(), "candidates.json")
+# Fallback for frozen builds: a copy of candidates.json is packed into the
+# bundle so a fresh exe still shows the listbox even before the user runs
+# list_candidates.bat to refresh next to the .exe.
+CANDIDATES_FILE_BUNDLED = _bundled("candidates.json")
 
 
 def load_candidate_names() -> List[str]:
     """Load the current round's character names for the GUI multi-select.
-    Falls back to the static snapshot in extracted/page_probe_v2/character.js
-    so the listbox still has something even if candidates.json is missing.
+    Order of preference:
+      1. candidates.json next to the .exe / source file (user-refreshed)
+      2. candidates.json packed into the PyInstaller bundle (frozen builds)
+      3. extracted/page_probe_v2/character.js (dev tree only)
     """
-    if os.path.isfile(CANDIDATES_FILE):
-        try:
-            with open(CANDIDATES_FILE, "r", encoding="utf-8") as f:
-                snap = json.load(f)
-            names = [e.get("name") for e in (snap.get("entries") or [])]
-            names = [n for n in names if n]
-            if names:
-                return names
-        except Exception:
-            pass
+    for path in (CANDIDATES_FILE, CANDIDATES_FILE_BUNDLED):
+        if path and os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    snap = json.load(f)
+                names = [e.get("name") for e in (snap.get("entries") or [])]
+                names = [n for n in names if n]
+                if names:
+                    return names
+            except Exception:
+                continue
     here = os.path.dirname(os.path.abspath(__file__))
     char_js = os.path.normpath(os.path.join(
         here, "..", "extracted", "page_probe_v2", "character.js"))
