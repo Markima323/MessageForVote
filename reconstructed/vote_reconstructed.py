@@ -115,6 +115,9 @@ class Config:
 REFILL_BATCH_SIZE = 20      # [HARD]
 REFILL_THRESHOLD  = 7       # [STRONG] (observed boundary: refill fired with 7 left)
 
+# 本轮主投票目标角色（硬编码，GUI 不再开放选择）
+FIXED_TARGET_NAMES: List[str] = ["卡芙卡", "阿格莱雅", "翡翠"]
+
 
 class ProxyManager:
     """[HARD-confirmed] Fetch-and-blacklist proxy rotation."""
@@ -281,6 +284,7 @@ def _tile_for_slot(slot: int, screen_w: int, screen_h: int,
     return col * tile_w, row * tile_h, tile_w, tile_h
 
 
+
 def _make_captcha_init_script(offset_x: int, offset_y: int) -> str:
     """Build an init script that pins .window-show to viewport center plus
     a manual (offset_x, offset_y) pixel offset. The offset is exposed via
@@ -384,7 +388,8 @@ class Voter:
     def __init__(self, cfg: Config, proxies: ProxyManager,
                  log: Callable[[str], None],
                  on_resolved: Optional[Callable[[str, int], None]] = None,
-                 on_rank: Optional[Callable[[str, int], None]] = None):
+                 on_rank: Optional[Callable[[str, int], None]] = None,
+                 on_pk_count: Optional[Callable[[int], None]] = None):
         self.cfg = cfg
         self.proxies = proxies
         self.log = log
@@ -394,6 +399,11 @@ class Voter:
         # callback fires whenever a PK round resolves a fresh rank for the
         # target character. Receiver (the GUI) displays it on the panel.
         self.on_rank = on_rank or (lambda _name, _rank: None)
+        # callback fires whenever a Pk2 succeeds. Receiver (the GUI) updates
+        # the always-on-top system popup.
+        self.on_pk_count = on_pk_count or (lambda _n: None)
+        # 累计 Pk2 (errCode==0) 成功次数
+        self.pk_success_count: int = 0
 
     async def _wait_for_captcha_or_modal(self, page: Page,
                                           timeout_ms: int) -> Optional[str]:
@@ -539,7 +549,6 @@ class Voter:
         # the window resizes (resolution / DPI changes carry over too).
         await ctx.add_init_script(_make_captcha_init_script(
             self.cfg.captcha_offset_x, self.cfg.captcha_offset_y))
-
         # ---- speed-up: block resources we don't need for the vote flow ----
         # Page has ~90 character illustrations from static.appoint.icu, ~5
         # font files, plus various media — none of which the bot needs.
@@ -598,15 +607,9 @@ class Voter:
             await page.goto(self.VOTE_PAGE_URL, wait_until="domcontentloaded",
                             timeout=NAVIGATE_TIMEOUT_MS)
 
-            # Build the target list. Prefer the multi-select field; fall
-            # back to the legacy single-name field so old configs still work.
-            names = [n.strip() for n in (self.cfg.target_character_names or [])
-                     if n and n.strip()]
-            if not names and self.cfg.target_character_name.strip():
-                names = [self.cfg.target_character_name.strip()]
-            if not names:
-                self.log(f"[ERROR] [{vote_id}] 未选中任何目标角色")
-                return False
+
+            # 目标角色固定为 FIXED_TARGET_NAMES，忽略历史 cfg 字段
+            names = list(FIXED_TARGET_NAMES)
 
             name_to_data = await self._read_character_data(page)
             if not name_to_data:
@@ -918,7 +921,24 @@ class Voter:
                 vid,
             )
             status = result.get("status") if isinstance(result, dict) else None
-            return status == 200
+            body = result.get("text") if isinstance(result, dict) else ""
+            ok = False
+            try:
+                obj = json.loads(body) if body else None
+                if isinstance(obj, dict) and obj.get("errCode") == 0:
+                    ok = True
+            except Exception:
+                pass
+            if ok:
+                self.pk_success_count += 1
+                try:
+                    self.on_pk_count(self.pk_success_count)
+                except Exception:
+                    pass
+            else:
+                self.log(f"[INFO] [{vote_id}] Pk2 失败 status={status} "
+                         f"body={(body or '')[:80]}")
+            return ok
         except Exception as e:
             self.log(f"[WARN] [{vote_id}] Pk2 异常: "
                      f"{type(e).__name__}: {str(e)[:120]}")
@@ -1140,6 +1160,11 @@ class Voter:
                 self.log(f"[INFO] [{vote_id}] 刷新后仍无 captcha/确认框，放弃")
                 return False
 
+        # 复活赛/部分轮次会跳过 "确定投给TA吗？" 模态，
+        # 验证码通过后服务器直接返回成功 → 页面显示 "成功投票给 X！"。
+        # 这种情况下点 '确认投票' 是多余且会卡住的，要绕过。
+        saw_success_directly = False
+
         if outcome == "captcha":
             self.log(f"[INFO] [{vote_id}] 弹出 captcha，进入处理")
             MAX_CAPTCHA_CYCLES = 5
@@ -1150,16 +1175,38 @@ class Voter:
                 except NotImplementedError as e:
                     self.log(f"[WARN] [{vote_id}] captcha 处理未实现: {e}")
                     return False
+                # race: 等 [确认模态 | 成功投票提示]
                 try:
-                    await page.locator(self.CONFIRM_MODAL_SELECTOR).filter(
-                        has_text=self.CONFIRM_TITLE_TEXT
-                    ).first.wait_for(state="visible",
-                                     timeout=CONFIRM_MODAL_TIMEOUT_MS)
+                    confirm_task = asyncio.create_task(
+                        page.locator(self.CONFIRM_MODAL_SELECTOR).filter(
+                            has_text=self.CONFIRM_TITLE_TEXT
+                        ).first.wait_for(state="visible",
+                                         timeout=CONFIRM_MODAL_TIMEOUT_MS),
+                        name="modal",
+                    )
+                    success_task = asyncio.create_task(
+                        page.get_by_text("成功投票").first.wait_for(
+                            state="visible",
+                            timeout=CONFIRM_MODAL_TIMEOUT_MS),
+                        name="success",
+                    )
+                    done, pending = await asyncio.wait(
+                        [confirm_task, success_task],
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for t in pending:
+                        t.cancel()
+                    winner = next(iter(done))
+                    winner.result()  # 抛异常 → 进 except
+                    if winner.get_name() == "success":
+                        saw_success_directly = True
+                        self.log(f"[INFO] [{vote_id}] 验证后直接显示成功投票，"
+                                 f"跳过 '确认投票' 模态")
                     got_modal = True
                     break
                 except Exception:
                     pass
-                self.log(f"[INFO] [{vote_id}] 验证后无确认模态，"
+                self.log(f"[INFO] [{vote_id}] 验证后无确认模态/成功提示，"
                          f"自动再点投票按钮 (第 {cycle + 1} 次)")
                 try:
                     card = page.locator(self.CANDIDATE_CARD_SELECTOR,
@@ -1201,65 +1248,81 @@ class Voter:
         except Exception:
             pass
 
-        self.log(f"[INFO] [{vote_id}] 准备点击 '确认投票'")
-        click_target = (
-            page.locator(self.CONFIRM_BUTTON_SELECTOR)
-            .filter(has_text="确认投票")
-            .first
-        )
-        clicked = False
-        for label, fn in [
-            ("normal", lambda: click_target.click(timeout=8_000)),
-            ("force",  lambda: click_target.click(timeout=8_000, force=True)),
-            ("text-fallback",
-             lambda: page.get_by_text("确认投票").first.click(
-                 timeout=8_000, force=True)),
-        ]:
-            try:
-                await fn()
-                clicked = True
-                self.log(f"[INFO] [{vote_id}] 点击成功 ({label})")
-                break
-            except Exception as e:
-                self.log(f"[WARN] [{vote_id}] 点击失败 ({label}): {type(e).__name__}")
-        if not clicked:
-            return False
+        if saw_success_directly:
+            # 复活赛 / 部分轮次：验证码过后服务器直接返回成功，没有 confirm 模态。
+            # 文字已经在 DOM 里了，再 wait_for + 找 "确定" 按钮纯粹是浪费时间
+            # (默认 20s + 15s ≈ 35s)。后续 fetch 是后台 XHR，残留 modal 不影响。
+            # 直接返回，让脚本立即进入 fetch / 评分 / PK 阶段。
+            self.log(f"[INFO] [{vote_id}] 已直接看到成功提示，"
+                     f"跳过 '确认投票' 与 '确定' 等待，立即继续")
+            return True
+        else:
+            self.log(f"[INFO] [{vote_id}] 准备点击 '确认投票'")
+            click_target = (
+                page.locator(self.CONFIRM_BUTTON_SELECTOR)
+                .filter(has_text="确认投票")
+                .first
+            )
+            clicked = False
+            for label, fn in [
+                ("normal", lambda: click_target.click(timeout=8_000)),
+                ("force",  lambda: click_target.click(timeout=8_000, force=True)),
+                ("text-fallback",
+                 lambda: page.get_by_text("确认投票").first.click(
+                     timeout=8_000, force=True)),
+            ]:
+                try:
+                    await fn()
+                    clicked = True
+                    self.log(f"[INFO] [{vote_id}] 点击成功 ({label})")
+                    break
+                except Exception as e:
+                    self.log(f"[WARN] [{vote_id}] 点击失败 ({label}): "
+                             f"{type(e).__name__}")
+            if not clicked:
+                return False
 
-        # ---- success modal ----
+        # ---- 等成功提示 ----
+        # 复活赛 toast 短暂可见 (~2-3s) 后自动消失。
+        # 之前的实现在 saw_success_directly 路径下还会再 wait_for 一次，
+        # 但走到这里 toast 大概率已经消失 → wait_for 超时 → 误判失败、
+        # 触发 _save_debug_snapshot 看起来像 "卡住"。
+        # 现在分两条路径处理:
+        #   - saw_success_directly: race 已确认可见，直接读文字并返回
+        #   - 普通路径: 现在才第一次等 toast 出现
         success_modal = page.get_by_text("成功投票").first
-        self.log(f"[INFO] [{vote_id}] 等待成功提示出现 "
-                 f"(最多 {SUCCESS_MODAL_TIMEOUT_MS // 1000} 秒)")
-        try:
-            await success_modal.wait_for(state="visible",
-                                         timeout=SUCCESS_MODAL_TIMEOUT_MS)
-        except Exception as e:
-            err_type = type(e).__name__
-            err_msg = str(e).splitlines()[0][:160] if str(e) else ""
-            self.log(f"[WARN] [{vote_id}] 等成功提示失败: {err_type}: {err_msg}")
-            await self._save_debug_snapshot(page, vote_id)
-            return False
+        if not saw_success_directly:
+            try:
+                await success_modal.wait_for(state="visible", timeout=8_000)
+            except Exception as e:
+                err_type = type(e).__name__
+                err_msg = str(e).splitlines()[0][:160] if str(e) else ""
+                self.log(f"[WARN] [{vote_id}] 等成功提示失败: {err_type}: {err_msg}")
+                await self._save_debug_snapshot(page, vote_id)
+                return False
 
+        # toast 可能已经消失，inner_text 拿不到也无所谓——race 已经验证过
         try:
-            text = (await success_modal.inner_text()).strip().replace("\n", " ")
+            text = (await success_modal.inner_text(timeout=1_500)).strip().replace("\n", " ")
             self.log(f"[OK] [{vote_id}] {text[:120]}")
         except Exception:
             self.log(f"[OK] [{vote_id}] 投票成功")
 
-        ok_btn = page.locator(".custom-alert-button", has_text="确定").first
-        for label, fn in [
-            ("normal", lambda: ok_btn.click(timeout=5_000)),
-            ("force",  lambda: ok_btn.click(timeout=5_000, force=True)),
-            ("text-fallback",
-             lambda: page.get_by_text("确定", exact=True).first.click(
-                 timeout=5_000, force=True)),
-        ]:
-            try:
-                await fn()
-                self.log(f"[INFO] [{vote_id}] 已关闭成功提示 ({label})")
-                break
-            except Exception as e:
-                self.log(f"[WARN] [{vote_id}] 关闭成功提示失败 ({label}): "
-                         f"{type(e).__name__}")
+        # 后台尝试关掉 "确定"，关不掉也没关系（复活赛 toast 会自动消失）
+        async def _dismiss_ok():
+            for fn in (
+                lambda: page.locator(".custom-alert-button",
+                                     has_text="确定").first.click(
+                    timeout=1_500, force=True),
+                lambda: page.get_by_text("确定", exact=True).first.click(
+                    timeout=1_500, force=True),
+            ):
+                try:
+                    await fn()
+                    return
+                except Exception:
+                    continue
+        asyncio.create_task(_dismiss_ok())
         return True
 
     async def _handle_captcha(self, page: Page):
@@ -1326,12 +1389,14 @@ class VoteRunner:
     def __init__(self, cfg: Config, log: Callable[[str], None],
                  status: Callable[[str], None],
                  on_resolved: Optional[Callable[[str, int], None]] = None,
-                 on_rank: Optional[Callable[[str, int], None]] = None):
+                 on_rank: Optional[Callable[[str, int], None]] = None,
+                 on_pk_count: Optional[Callable[[int], None]] = None):
         self.cfg = cfg
         self.log = log
         self.set_status = status
         self.on_resolved = on_resolved
         self.on_rank = on_rank
+        self.on_pk_count = on_pk_count
         self._stop = threading.Event()
         self._success = 0
         self._lock = threading.Lock()
@@ -1389,7 +1454,9 @@ class VoteRunner:
             # chromium-1217) are launched via pw.chromium with a custom
             # executable_path. The "engine" choice is therefore implicit.
             engine = pw.chromium
-            launch_kwargs = dict(headless=self.cfg.headless)
+            # 强制 headless=False：脚本需要用户手动滑滑块解验证码，
+            # 无头模式没有窗口就没法滑。GUI 也不再开放该开关。
+            launch_kwargs = dict(headless=False)
             resolved = resolve_browser_path(self.cfg.browser_path)
             if resolved:
                 launch_kwargs["executable_path"] = resolved
@@ -1422,7 +1489,7 @@ class VoteRunner:
                 self.log(f"[INFO] page pool 就绪：{self.cfg.concurrency} 个 context")
 
                 voter = Voter(self.cfg, proxies, self.log,
-                              self.on_resolved, self.on_rank)
+                              self.on_resolved, self.on_rank, self.on_pk_count)
                 # Debug mode = force exactly one round, single-threaded, then
                 # idle until the user clicks Stop. This lets the browser
                 # window stay open for inspection after the round finishes.
@@ -1666,7 +1733,6 @@ class App(tk.Tk):
         # browser engine is fixed to chromium now — Playwright treats Chrome,
         # Edge, Brave, and bundled chromium-1217 all as the same engine.
         self.var_browser     = tk.StringVar(value=cfg.browser_path)
-        self.var_headless    = tk.BooleanVar(value=cfg.headless)
         self.var_debug       = tk.BooleanVar(value=cfg.debug_mode)
         self.var_captcha_x   = tk.IntVar(value=cfg.captcha_offset_x)
         self.var_captcha_y   = tk.IntVar(value=cfg.captcha_offset_y)
@@ -1696,6 +1762,11 @@ class App(tk.Tk):
 
         self._build()
         self.runner: Optional[VoteRunner] = None
+        # Always-on-top system popup that floats above the browser window.
+        # Created lazily on first PK count update so it doesn't clutter the
+        # screen before the user has clicked "开始".
+        self._pk_popup: Optional[tk.Toplevel] = None
+        self._pk_popup_label: Optional[tk.Label] = None
         # persist config on close
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -1737,44 +1808,16 @@ class App(tk.Tk):
 
         r = len(rows)
 
-        # multi-select listbox for target characters
-        ttk.Label(cfg_frame, text="目标角色（多选，Ctrl/Shift 加选）:").grid(
-            row=r, column=0, sticky="nw", padx=8, pady=3)
-        lb_frame = ttk.Frame(cfg_frame)
-        lb_frame.grid(row=r, column=1, sticky="we", padx=8, pady=3)
-        self.lb_chars = tk.Listbox(
-            lb_frame, selectmode="extended", height=8, exportselection=False)
-        lb_scroll = ttk.Scrollbar(
-            lb_frame, orient="vertical", command=self.lb_chars.yview)
-        self.lb_chars.configure(yscrollcommand=lb_scroll.set)
-        self.lb_chars.pack(side="left", fill="both", expand=True)
-        lb_scroll.pack(side="right", fill="y")
-        for n in self._candidate_names:
-            self.lb_chars.insert("end", n)
-        for i, n in enumerate(self._candidate_names):
-            if n in self._initial_selection:
-                self.lb_chars.selection_set(i)
-        if self._candidate_names:
-            # ensure the first selection is visible
-            try:
-                first_sel = self.lb_chars.curselection()
-                if first_sel:
-                    self.lb_chars.see(first_sel[0])
-            except Exception:
-                pass
-        else:
-            ttk.Label(cfg_frame,
-                      text="（没找到 candidates.json / character.js — "
-                           "请先运行 list_candidates.py）",
-                      foreground="#b58900").grid(
-                row=r + 1, column=1, sticky="w", padx=8)
-            r += 1
-        r += 1
-
-        ttk.Checkbutton(cfg_frame, text="无头模式（生产推荐）",
-                        variable=self.var_headless).grid(
+        # 角色已固定，不再提供多选 UI
+        ttk.Label(cfg_frame, text="本轮固定角色:").grid(
+            row=r, column=0, sticky="w", padx=8, pady=3)
+        ttk.Label(cfg_frame,
+                  text=" / ".join(FIXED_TARGET_NAMES),
+                  foreground="#2aa198",
+                  font=("TkDefaultFont", 10, "bold")).grid(
             row=r, column=1, sticky="w", padx=8, pady=3)
         r += 1
+
         ttk.Checkbutton(cfg_frame,
                         text="调试模式（一轮结束后保留页面，单线程）",
                         variable=self.var_debug).grid(
@@ -1838,27 +1881,19 @@ class App(tk.Tk):
         self.txt_log.tag_config("OK",    foreground="#2aa198")
 
     # -- callbacks --
-    def _selected_character_names(self) -> List[str]:
-        try:
-            idxs = self.lb_chars.curselection()
-        except Exception:
-            return []
-        return [self._candidate_names[i] for i in idxs
-                if 0 <= i < len(self._candidate_names)]
-
     def _collect_config(self) -> Config:
         return Config(
             proxy_api_url=self.var_proxy_url.get(),
             proxy_protocol=self.var_proxy_proto.get(),
-            target_character_name=self.var_char_name.get(),
-            target_character_names=self._selected_character_names(),
+            target_character_name=FIXED_TARGET_NAMES[0],
+            target_character_names=list(FIXED_TARGET_NAMES),
             target_button_index=int(self.var_btn_index.get()),
             concurrency=int(self.var_concurrency.get()),
             total_votes=int(self.var_total.get()),
             debug_mode=bool(self.var_debug.get()),
             browser_engine="chromium",  # field retained for config-yaml compat
             browser_path=self.var_browser.get(),
-            headless=bool(self.var_headless.get()),
+            headless=False,  # 半自动需要可见浏览器供人工解滑块
             last_resolved_name=self._last_resolved_name,
             last_resolved_index=self._last_resolved_index,
             last_resolved_at=self._last_resolved_at,
@@ -1916,6 +1951,60 @@ class App(tk.Tk):
         self.after(0, lambda: self.var_rank_hint.set(
             f"{name}当前的排名为：{rank}  (更新于 {ts})"))
 
+    def _ensure_pk_popup(self):
+        """Create the always-on-top counter popup if it doesn't exist yet.
+        Must run on the Tk thread (call only via self.after)."""
+        if self._pk_popup is not None:
+            try:
+                if self._pk_popup.winfo_exists():
+                    return
+            except Exception:
+                pass
+        popup = tk.Toplevel(self)
+        popup.overrideredirect(True)              # 无标题栏 / 无边框
+        popup.attributes("-topmost", True)        # 始终在最顶层
+        popup.attributes("-alpha", 0.92)          # 微透明
+        try:
+            popup.attributes("-toolwindow", True)  # Windows: 不在任务栏占位
+        except Exception:
+            pass
+        popup.configure(bg="#1a1a1a", highlightthickness=2,
+                        highlightbackground="#f0c674",
+                        highlightcolor="#f0c674")
+        lbl = tk.Label(
+            popup, text="当前已刷票数：0",
+            bg="#1a1a1a", fg="#fff",
+            font=("Microsoft YaHei UI", 13, "bold"),
+            padx=18, pady=8,
+        )
+        lbl.pack()
+        popup.update_idletasks()
+        # 屏幕顶部居中
+        sw = popup.winfo_screenwidth()
+        w = popup.winfo_reqwidth()
+        x = (sw - w) // 2
+        popup.geometry(f"+{x}+12")
+        self._pk_popup = popup
+        self._pk_popup_label = lbl
+
+    def _on_pk_count_updated(self, n: int):
+        """Voter callback: fires from the asyncio worker thread on every
+        successful Pk2. Marshal to Tk thread to create/update the popup."""
+        def _do():
+            self._ensure_pk_popup()
+            if self._pk_popup_label is not None:
+                try:
+                    self._pk_popup_label.configure(text=f"当前已刷票数：{n}")
+                except Exception:
+                    pass
+            if self._pk_popup is not None:
+                try:
+                    self._pk_popup.attributes("-topmost", True)
+                    self._pk_popup.lift()
+                except Exception:
+                    pass
+        self.after(0, _do)
+
     def log(self, msg: str):
         # [HARD] runtime log format: "HH:MM:SS [LEVEL] [vote_id] message"
         ts = time.strftime("%H:%M:%S")
@@ -1969,11 +2058,14 @@ class App(tk.Tk):
         self._fired_for_session.clear()
         self.runner = VoteRunner(cfg, self.log, self.set_status,
                                  on_resolved=self._on_card_resolved,
-                                 on_rank=self._on_rank_updated)
+                                 on_rank=self._on_rank_updated,
+                                 on_pk_count=self._on_pk_count_updated)
         self.runner.run_in_thread()
         self.btn_start.configure(state="disabled")
         self.btn_stop.configure(state="normal")
         self.set_status("运行中")
+        # 启动时立刻弹出计数浮窗，显示 0
+        self._on_pk_count_updated(0)
 
     def on_stop(self):
         if self.runner is not None:
@@ -1989,6 +2081,11 @@ class App(tk.Tk):
             pass
         if self.runner is not None:
             self.runner.request_stop()
+        if self._pk_popup is not None:
+            try:
+                self._pk_popup.destroy()
+            except Exception:
+                pass
         self.destroy()
 
 
