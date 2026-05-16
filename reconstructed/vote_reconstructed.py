@@ -115,8 +115,9 @@ class Config:
 REFILL_BATCH_SIZE = 20      # [HARD]
 REFILL_THRESHOLD  = 7       # [STRONG] (observed boundary: refill fired with 7 left)
 
-# 本轮主投票目标角色（硬编码，GUI 不再开放选择）
-FIXED_TARGET_NAMES: List[str] = ["卡芙卡", "阿格莱雅", "翡翠"]
+# 本轮主投票目标角色：优先从 config.yaml 的 target_character_names 读，
+# 没设/为空时回退到这个默认列表。改人只需要在 config.yaml 里编辑。
+DEFAULT_TARGET_NAMES: List[str] = ["砂金", "卡芙卡", "景元"]
 
 
 class ProxyManager:
@@ -608,8 +609,11 @@ class Voter:
                             timeout=NAVIGATE_TIMEOUT_MS)
 
 
-            # 目标角色固定为 FIXED_TARGET_NAMES，忽略历史 cfg 字段
-            names = list(FIXED_TARGET_NAMES)
+            # 目标角色：优先用 config.yaml 的 target_character_names；
+            # 缺失或为空时回退到 DEFAULT_TARGET_NAMES。
+            cfg_names = [n.strip() for n in (self.cfg.target_character_names or [])
+                         if isinstance(n, str) and n.strip()]
+            names = cfg_names if cfg_names else list(DEFAULT_TARGET_NAMES)
 
             name_to_data = await self._read_character_data(page)
             if not name_to_data:
@@ -1723,6 +1727,12 @@ class App(tk.Tk):
         self.geometry("820x620")
 
         cfg = load_config()
+        # 把用户在 config.yaml 里设的 target_character_names 缓存下来，
+        # 后续 _collect_config / save_config 都用这个，不会被覆盖回 DEFAULT
+        self._target_names_in_use: List[str] = [
+            n for n in (cfg.target_character_names or [])
+            if isinstance(n, str) and n.strip()
+        ] or list(DEFAULT_TARGET_NAMES)
         # form variables — [HARD]
         self.var_proxy_url   = tk.StringVar(value=cfg.proxy_api_url)
         self.var_proxy_proto = tk.StringVar(value=cfg.proxy_protocol)
@@ -1808,11 +1818,11 @@ class App(tk.Tk):
 
         r = len(rows)
 
-        # 角色已固定，不再提供多选 UI
+        # 角色已固定（读自 config.yaml: target_character_names）
         ttk.Label(cfg_frame, text="本轮固定角色:").grid(
             row=r, column=0, sticky="w", padx=8, pady=3)
         ttk.Label(cfg_frame,
-                  text=" / ".join(FIXED_TARGET_NAMES),
+                  text=" / ".join(self._target_names_in_use),
                   foreground="#2aa198",
                   font=("TkDefaultFont", 10, "bold")).grid(
             row=r, column=1, sticky="w", padx=8, pady=3)
@@ -1885,8 +1895,8 @@ class App(tk.Tk):
         return Config(
             proxy_api_url=self.var_proxy_url.get(),
             proxy_protocol=self.var_proxy_proto.get(),
-            target_character_name=FIXED_TARGET_NAMES[0],
-            target_character_names=list(FIXED_TARGET_NAMES),
+            target_character_name=self._target_names_in_use[0],
+            target_character_names=list(self._target_names_in_use),
             target_button_index=int(self.var_btn_index.get()),
             concurrency=int(self.var_concurrency.get()),
             total_votes=int(self.var_total.get()),

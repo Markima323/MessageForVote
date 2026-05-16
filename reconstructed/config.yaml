@@ -3,8 +3,8 @@ proxy_protocol: http
 target_character_name: 卡芙卡
 target_character_names:
 - 卡芙卡
-- 阿格莱雅
-- 翡翠
+- 砂金
+- 流萤
 target_button_index: 10
 concurrency: 6
 total_votes: 20000
@@ -13,7 +13,7 @@ browser_engine: chromium
 browser_path: C:\Program Files\Google\Chrome\Application\chrome.exe
 headless: false
 last_resolved_name: 卡芙卡
-last_resolved_index: 1
-last_resolved_at: '2026-05-15 09:39:39'
+last_resolved_index: 9
+last_resolved_at: '2026-05-17 01:37:50'
 captcha_offset_x: -362
 captcha_offset_y: -221

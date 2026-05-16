@@ -1,22 +1,22 @@
 {
   "url": "https://www.starrailawards.com/Vote2026/index.html",
-  "captured_at": "2026-05-14 21:36:14",
-  "count": 59,
+  "captured_at": "2026-05-16 21:18:23",
+  "count": 16,
   "entries": [
     {
       "index": 0,
-      "name": "花火",
-      "image_key": "huahuo"
+      "name": "砂金",
+      "image_key": "shajin"
     },
     {
       "index": 1,
-      "name": "景元",
-      "image_key": "jingyuan"
+      "name": "昔涟",
+      "image_key": "xilian"
     },
     {
       "index": 2,
-      "name": "卡芙卡",
-      "image_key": "kafuka"
+      "name": "花火",
+      "image_key": "huahuo"
     },
     {
       "index": 3,
@@ -25,278 +25,63 @@
     },
     {
       "index": 4,
-      "name": "遐蝶",
-      "image_key": "xiadie"
+      "name": "白厄",
+      "image_key": "baie"
     },
     {
       "index": 5,
-      "name": "三月七",
-      "image_key": "sanyueqi"
+      "name": "流萤",
+      "image_key": "liuying"
     },
     {
       "index": 6,
-      "name": "真理医生",
-      "image_key": "zhenliyisheng"
+      "name": "银狼",
+      "image_key": "yinlang"
     },
     {
       "index": 7,
-      "name": "风堇",
-      "image_key": "fengjin"
+      "name": "那刻夏",
+      "image_key": "nakexia"
     },
     {
       "index": 8,
-      "name": "黑塔",
-      "image_key": "heita"
+      "name": "星期日",
+      "image_key": "xingqiri"
     },
     {
       "index": 9,
-      "name": "波提欧",
-      "image_key": "botiou"
+      "name": "丹恒",
+      "image_key": "danheng"
     },
     {
       "index": 10,
-      "name": "绯英",
-      "image_key": "feiying"
+      "name": "景元",
+      "image_key": "jingyuan"
     },
     {
       "index": 11,
-      "name": "刻律德菈",
-      "image_key": "kelvdela"
+      "name": "万敌",
+      "image_key": "wandi"
     },
     {
       "index": 12,
-      "name": "银枝",
-      "image_key": "yinzhi"
+      "name": "卡芙卡",
+      "image_key": "kafuka"
     },
     {
       "index": 13,
-      "name": "阿格莱雅",
-      "image_key": "agelaiya"
+      "name": "不死途",
+      "image_key": "busitu"
     },
     {
       "index": 14,
-      "name": "爻光",
-      "image_key": "yaoguang"
+      "name": "刃",
+      "image_key": "ren"
     },
     {
       "index": 15,
-      "name": "彦卿",
-      "image_key": "yanqing"
-    },
-    {
-      "index": 16,
-      "name": "罗刹",
-      "image_key": "luocha"
-    },
-    {
-      "index": 17,
-      "name": "飞霄",
-      "image_key": "feixiao"
-    },
-    {
-      "index": 18,
-      "name": "椒丘",
-      "image_key": "jiaoqiu"
-    },
-    {
-      "index": 19,
-      "name": "米沙",
-      "image_key": "misha"
-    },
-    {
-      "index": 20,
-      "name": "镜流",
-      "image_key": "jingliu"
-    },
-    {
-      "index": 21,
-      "name": "托帕",
-      "image_key": "tuopa"
-    },
-    {
-      "index": 22,
-      "name": "海瑟音",
-      "image_key": "haiseyin"
-    },
-    {
-      "index": 23,
-      "name": "缇宝",
-      "image_key": "tibao"
-    },
-    {
-      "index": 24,
-      "name": "藿藿",
-      "image_key": "huohuo"
-    },
-    {
-      "index": 25,
-      "name": "赛飞儿",
-      "image_key": "saifeier"
-    },
-    {
-      "index": 26,
-      "name": "桂乃芬",
-      "image_key": "guinaifen"
-    },
-    {
-      "index": 27,
-      "name": "桑博",
-      "image_key": "sangbo"
-    },
-    {
-      "index": 28,
-      "name": "翡翠",
-      "image_key": "feicui"
-    },
-    {
-      "index": 29,
-      "name": "阮·梅",
-      "image_key": "ruanmei"
-    },
-    {
-      "index": 30,
-      "name": "乱破",
-      "image_key": "luanpo"
-    },
-    {
-      "index": 31,
-      "name": "貊泽",
-      "image_key": "moze"
-    },
-    {
-      "index": 32,
-      "name": "姬子",
-      "image_key": "jizi"
-    },
-    {
-      "index": 33,
-      "name": "希儿",
-      "image_key": "xier"
-    },
-    {
-      "index": 34,
-      "name": "卢卡",
-      "image_key": "luka"
-    },
-    {
-      "index": 35,
-      "name": "灵砂",
-      "image_key": "lingsha"
-    },
-    {
-      "index": 36,
-      "name": "克拉拉",
-      "image_key": "kelala"
-    },
-    {
-      "index": 37,
-      "name": "青雀",
-      "image_key": "qingque"
-    },
-    {
-      "index": 38,
-      "name": "白露",
-      "image_key": "bailu"
-    },
-    {
-      "index": 39,
-      "name": "停云",
-      "image_key": "tingyun"
-    },
-    {
-      "index": 40,
-      "name": "符玄",
-      "image_key": "fuxuan"
-    },
-    {
-      "index": 41,
-      "name": "寒鸦",
-      "image_key": "hanya"
-    },
-    {
-      "index": 42,
-      "name": "玲可",
-      "image_key": "lingke"
-    },
-    {
-      "index": 43,
-      "name": "驭空",
-      "image_key": "yukong"
-    },
-    {
-      "index": 44,
-      "name": "瓦尔特",
-      "image_key": "waerte"
-    },
-    {
-      "index": 45,
-      "name": "布洛妮娅",
-      "image_key": "buluoniya"
-    },
-    {
-      "index": 46,
-      "name": "杰帕德",
-      "image_key": "jiepade"
-    },
-    {
-      "index": 47,
-      "name": "娜塔莎",
-      "image_key": "natasha"
-    },
-    {
-      "index": 48,
-      "name": "黑天鹅",
-      "image_key": "heitiane"
-    },
-    {
-      "index": 49,
-      "name": "虎克",
-      "image_key": "huke"
-    },
-    {
-      "index": 50,
-      "name": "加拉赫",
-      "image_key": "jialahe"
-    },
-    {
-      "index": 51,
-      "name": "希露瓦",
-      "image_key": "xiluwa"
-    },
-    {
-      "index": 52,
-      "name": "佩拉",
-      "image_key": "peila"
-    },
-    {
-      "index": 53,
-      "name": "阿兰",
-      "image_key": "alan"
-    },
-    {
-      "index": 54,
-      "name": "艾丝妲",
-      "image_key": "aisida"
-    },
-    {
-      "index": 55,
-      "name": "大丽花",
-      "image_key": "dalihua"
-    },
-    {
-      "index": 56,
-      "name": "云璃",
-      "image_key": "yunli"
-    },
-    {
-      "index": 57,
-      "name": "素裳",
-      "image_key": "sushang"
-    },
-    {
-      "index": 58,
-      "name": "雪衣",
-      "image_key": "xueyi"
+      "name": "黄泉",
+      "image_key": "huangquan"
     }
   ]
 }
