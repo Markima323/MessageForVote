@@ -79,6 +79,19 @@ class Config:
     concurrency: int = 6                        # GUI: 并发数 (3×2 平铺时正好)
     total_votes: int = 200                      # GUI: 总投票轮次（每轮 = 选中的所有角色 + 评分 + 截图）
     debug_mode: bool = False                    # GUI: 调试模式（一轮结束后保留页面，不进入下一轮）
+    # 投票流程模式：
+    #   "full"  = 主赛道 + 副赛道：投全部目标 + 评分 + 截图 + 点赞 + PK（默认）
+    #   "quick" = 主赛道快刷：只投 target_character_names[0]，跳过其余角色和所有副赛道
+    flow_mode: str = "full"
+    # cookie 模式下用户粘贴的 cookie 字符串
+    # 格式：在浏览器 console 跑 document.cookie 拿到的 "name=value; name=value; ..."
+    user_cookies: str = ""
+    # 验证码处理模式：
+    #   "manual" = 等用户手动滑滑块（默认）
+    #   "auto"   = 调 yydsocr/jfbym API 自动识别（代码保留待用）
+    #   "cookie" = 注入 user_cookies 复用已验证身份，跳过 captcha
+    captcha_mode: str = "manual"
+    yydsocr_token: str = ""                     # yydsocr API token（自动模式必填）
     browser_engine: str = "chromium"            # GUI: 浏览器引擎 (combobox: chromium / webkit)
     browser_path: str = (
         r"C:\Program Files (x86)\Microsoft Edge\Application\msedge.exe"
@@ -98,6 +111,8 @@ class Config:
     # vendor's internal positioning.
     captcha_offset_x: int = 0
     captcha_offset_y: int = 0
+    # captcha 处理模式: "manual" = 人工滑滑块（默认），"auto" = 走 jfbym OCR API
+    captcha_mode: str = "manual"
 
     @staticmethod
     def candidate_count() -> int:
@@ -114,6 +129,22 @@ class Config:
 # =============================================================================
 REFILL_BATCH_SIZE = 20      # [HARD]
 REFILL_THRESHOLD  = 7       # [STRONG] (observed boundary: refill fired with 7 left)
+
+# jfbym (yydsocr) 滑块验证码 OCR API —— 自动模式下用
+JFBYM_API_URL = "http://api.jfbym.com/api/YmServer/customApi"
+JFBYM_TOKEN = "QpQiKToxOKTsVHYQkDIYvgZ5I5ek7hRuaoHQQ6voNME"
+JFBYM_CAPTCHA_TYPE = "20333"  # 20333 = 阿里云 FeiLin 滑块（背景图 + 滑块图）
+
+# 阿里云 FeiLin captcha 的"拖动阻尼系数"——鼠标拖 100px，拼图只走 ~78px。
+# 实测来源：00:54:38 拖手实际移 198.0px → 拼图实际移 154.4px，ratio=0.7799。
+# OCR 给的距离是"拼图应走的距离"，所以鼠标实际要拖 OCR / 这个比例 才行。
+ALIYUN_DRAG_DAMP_RATIO = 0.78
+
+# yydsocr (另一家 OCR 平台) 滑块验证码 API —— 自动2 模式下用
+YYDSOCR_API_URL = "http://api.yydsocr.com/verify_api"
+YYDSOCR_USER_KEY = "dP93q37PBeFduDWbOoHWV3Vjiwsd1VF6Ijky4LfAYQfKC9sv"
+YYDSOCR_DEVELOPER_CODE = "qpwMj75BqIq0HClHjw79lwkFlqU05IsHpP2J2Uqw"
+YYDSOCR_TYPE = "2004"
 
 # 本轮主投票目标角色：优先从 config.yaml 的 target_character_names 读，
 # 没设/为空时回退到这个默认列表。改人只需要在 config.yaml 里编辑。
@@ -568,6 +599,46 @@ class Voter:
         await ctx.route("**/*", _route)
         return ctx
 
+    async def _inject_user_cookies(self, ctx: BrowserContext, vote_id: int) -> int:
+        """解析 cfg.user_cookies 字符串，注入到 ctx，返回注入条数。
+        接受格式：'name1=value1; name2=value2; ...'（document.cookie 输出格式）。
+        每个 cookie 同时用 host-only domain (www.starrailawards.com) 和
+        wildcard domain (.starrailawards.com) 各注入一遍，保险匹配。
+        """
+        raw = (self.cfg.user_cookies or "").strip()
+        if not raw:
+            return 0
+        pairs = []
+        for chunk in raw.split(";"):
+            chunk = chunk.strip()
+            if not chunk or "=" not in chunk:
+                continue
+            name, _, value = chunk.partition("=")
+            name = name.strip()
+            value = value.strip()
+            if name:
+                pairs.append((name, value))
+        if not pairs:
+            return 0
+        # 双注入：host-only + wildcard
+        parsed = []
+        for name, value in pairs:
+            parsed.append({
+                "name": name, "value": value,
+                "domain": "www.starrailawards.com", "path": "/",
+            })
+        try:
+            await ctx.add_cookies(parsed)
+            names = [c["name"] for c in parsed]
+            self.log(f"[INFO] [{vote_id}] cookie 模式：已注入 {len(parsed)} 个 "
+                     f"cookie ({', '.join(names[:5])}"
+                     f"{'…' if len(names) > 5 else ''})")
+            return len(parsed)
+        except Exception as e:
+            self.log(f"[WARN] [{vote_id}] 注入 cookie 失败: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+            return 0
+
     async def _locate_card(self, page: Page):
         """[HARD] return the .character-card matching the target name OR index.
 
@@ -605,9 +676,50 @@ class Voter:
         if not self.cfg.headless:
             await self._tile_window_cdp(ctx, page, slot, vote_id)
         try:
+            # cookie 模式：把用户粘贴的 cookies 注入到 ctx，page.goto 时
+            # 浏览器会带上这些 cookie，服务器看到已验证身份直接放行
+            cookie_mode = (self.cfg.captcha_mode or "").lower() == "cookie"
+            if cookie_mode:
+                injected = await self._inject_user_cookies(ctx, vote_id)
+                if not injected:
+                    self.log(f"[WARN] [{vote_id}] cookie 模式但没注入到任何 cookie，"
+                             f"继续流程但可能像普通模式一样被要求 captcha")
+                # 注入完后 dump 一下 ctx 实际持有的 cookie
+                try:
+                    cks = await ctx.cookies("https://www.starrailawards.com/")
+                    uuid_c = next((c for c in cks
+                                   if c["name"] == "Battle2vPsvote2026_uuid"),
+                                  None)
+                    self.log(f"[DEBUG] [{vote_id}] navigate 前 ctx.cookies: "
+                             f"{len(cks)} 条；uuid="
+                             f"{uuid_c['value'] if uuid_c else 'NONE'}")
+                except Exception:
+                    pass
+
             await page.goto(self.VOTE_PAGE_URL, wait_until="domcontentloaded",
                             timeout=NAVIGATE_TIMEOUT_MS)
 
+            if cookie_mode:
+                # navigate 后 + 等 JS 跑一会儿，看 cookie 是不是被覆盖了
+                try:
+                    await page.wait_for_timeout(1500)
+                    cks2 = await ctx.cookies("https://www.starrailawards.com/")
+                    uuid_c = next((c for c in cks2
+                                   if c["name"] == "Battle2vPsvote2026_uuid"),
+                                  None)
+                    self.log(f"[DEBUG] [{vote_id}] navigate 后 ctx.cookies: "
+                             f"{len(cks2)} 条；uuid="
+                             f"{uuid_c['value'] if uuid_c else 'NONE'}")
+                except Exception:
+                    pass
+
+            # 调试模式：到此为止——只用代理 IP 打开了一个无痕浏览器，
+            # 不点击、不投票、不刷副赛道。runner 会保留页面在那里等
+            # 用户手动操作（按"停止"退出）。
+            if self.cfg.debug_mode:
+                self.log(f"[INFO] [{vote_id}] 调试模式：页面已就绪，"
+                         f"不执行任何点击/投票动作，浏览器留给你手动操作")
+                return True
 
             # 目标角色：优先用 config.yaml 的 target_character_names；
             # 缺失或为空时回退到 DEFAULT_TARGET_NAMES。
@@ -631,6 +743,12 @@ class Voter:
                 self.log(f"[ERROR] [{vote_id}] 所有目标角色都没匹配到 vid")
                 return False
 
+            # quick 模式：只投 target_character_names[0] 一个，副赛道全部跳过
+            quick_mode = (self.cfg.flow_mode or "full").lower() == "quick"
+            if quick_mode:
+                targets = targets[:1]
+                self.log(f"[INFO] [{vote_id}] 快刷模式：仅投 '{targets[0][0]}'，"
+                         f"跳过其余角色与副赛道")
             self.log(f"[INFO] [{vote_id}] 本轮目标 {len(targets)} 个: "
                      f"{[f'{n}({v})' for n, v in targets]}")
 
@@ -642,6 +760,14 @@ class Voter:
                 self.log(f"[WARN] [{vote_id}] 第一票 UI 流程异常: "
                          f"{type(e).__name__}: {str(e)[:80]}")
                 ok_first = False
+
+            # ---- quick 模式：第一票完成即返回，不投其余角色、不走副赛道 ----
+            if quick_mode:
+                if ok_first:
+                    self.log(f"[OK] [{vote_id}] 快刷模式：第一票完成，进下一轮")
+                else:
+                    self.log(f"[WARN] [{vote_id}] 快刷模式：第一票未识别成功")
+                return ok_first
 
             # ---- remaining votes via fetch() (only if first vote was confirmed) ----
             if ok_first:
@@ -1330,18 +1456,426 @@ class Voter:
         return True
 
     async def _handle_captcha(self, page: Page):
-        """[USER-IMPLEMENTED] 半人工模式：等用户手动滑滑块。
-
-        阿里云 captcha 弹出时，浏览器里出现一个 .window-show 容器；
-        用户在浏览器里把滑块滑到位之后，这个容器会消失。
-        我们就等它消失即可——超时上限 180 秒（够一个人慢慢滑，
-        6 个并发也来得及一个一个解）。
+        """根据 cfg.captcha_mode 分流：
+          - "auto"   → jfbym 自动识别 + 自动拖动
+          - "auto2"  → yydsocr 自动识别 + 自动拖动
+          - "cookie" → 不该弹 captcha（cookie 应该已验证）；弹了就当 cookie 失效，
+                       回落到 manual 让用户应急
+          - "manual" → 等用户手动滑（默认）
+        所有 auto 路径失败都自动回落到 manual。
         """
+        mode = (self.cfg.captcha_mode or "manual").lower()
+        if mode == "auto":
+            try:
+                await self._handle_captcha_auto(page)
+                await page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
+                    state="hidden", timeout=10_000)
+                self.log("[OK] jfbym 自动识别通过，继续投票")
+                return
+            except Exception as e:
+                self.log(f"[WARN] jfbym 自动识别失败，回落到手动: "
+                         f"{type(e).__name__}: {str(e)[:120]}")
+        elif mode == "auto2":
+            try:
+                await self._handle_captcha_yydsocr(page)
+                await page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
+                    state="hidden", timeout=10_000)
+                self.log("[OK] yydsocr 自动识别通过，继续投票")
+                return
+            except Exception as e:
+                self.log(f"[WARN] yydsocr 自动识别失败，回落到手动: "
+                         f"{type(e).__name__}: {str(e)[:120]}")
+        elif mode == "cookie":
+            self.log(f"[WARN] cookie 模式下不应该弹验证码——"
+                     f"cookie 可能已失效或服务器仍要求验证。请手动滑应急")
         timeout_s = CAPTCHA_SOLVE_TIMEOUT_MS // 1000
         self.log(f"[INFO] 请在浏览器窗口内完成滑块验证（{timeout_s} 秒内）")
         await page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
             state="hidden", timeout=CAPTCHA_SOLVE_TIMEOUT_MS)
         self.log("[OK] 滑块已通过，继续投票")
+
+    async def _capture_captcha_images(self, page: Page) -> tuple:
+        """从 .window-show 内取出 (bg_b64, slide_b64)，直接读 img.src 原始 base64。
+        阿里云 FeiLin 的图是完整原图（验证过 bg=300x300 natural=300x300），
+        截图法反而会引入白边导致 OCR 失败。滑动距离 ≠ 1:1 的问题在
+        _measure_captcha_geometry + 距离换算里解决，不在取图层面处理。"""
+        # dump captcha DOM 调试
+        try:
+            html_snip = await page.evaluate(
+                r"""() => {
+                    const el = document.querySelector('.window-show');
+                    if (!el) return '<NO .window-show>';
+                    let s = el.outerHTML;
+                    s = s.replace(/(data:image\/[^,]+,)[A-Za-z0-9+\/=]{50,}/g,
+                                  '$1<base64 ellided>');
+                    return s.slice(0, 6000);
+                }"""
+            )
+            self.log(f"[DEBUG] captcha .window-show outerHTML (base64 已折叠):")
+            self.log(html_snip)
+        except Exception as e:
+            self.log(f"[WARN] dump captcha DOM 失败: {type(e).__name__}: {str(e)[:80]}")
+
+        candidates = await page.evaluate(
+            r"""async () => {
+                async function toBase64(el) {
+                    if (!el) return null;
+                    if (el.tagName === 'IMG' && el.src && el.src.startsWith('data:image')) {
+                        return el.src.split(',')[1] || null;
+                    }
+                    if (el.tagName === 'CANVAS') {
+                        try { return el.toDataURL('image/png').split(',')[1]; }
+                        catch (e) { return null; }
+                    }
+                    if (el.tagName === 'IMG' && el.src) {
+                        try {
+                            const r = await fetch(el.src);
+                            const blob = await r.blob();
+                            return await new Promise(res => {
+                                const rr = new FileReader();
+                                rr.onloadend = () => res((rr.result || '').split(',')[1] || null);
+                                rr.readAsDataURL(blob);
+                            });
+                        } catch (e) { return null; }
+                    }
+                    return null;
+                }
+                const root = document.querySelector('.window-show') || document;
+                const all = [
+                    ...root.querySelectorAll('img'),
+                    ...root.querySelectorAll('canvas'),
+                ];
+                const out = [];
+                for (const el of all) {
+                    const b = await toBase64(el);
+                    if (b && b.length > 200) {
+                        const rect = el.getBoundingClientRect();
+                        out.push({
+                            tag: el.tagName,
+                            id: el.id || '',
+                            cls: (el.className && el.className.toString) ? el.className.toString().slice(0, 50) : '',
+                            w: rect.width, h: rect.height,
+                            natW: el.naturalWidth || 0,
+                            natH: el.naturalHeight || 0,
+                            len: b.length,
+                            b64: b,
+                        });
+                    }
+                }
+                return out;
+            }"""
+        )
+        if not isinstance(candidates, list) or not candidates:
+            raise RuntimeError("从 .window-show 内没取到任何图片 base64")
+
+        self.log(f"[INFO] captcha 共取到 {len(candidates)} 张候选图：")
+        for i, c in enumerate(candidates):
+            self.log(f"  [{i}] #{c['id']}.{c['cls']} "
+                     f"渲染={int(c['w'])}x{int(c['h'])} "
+                     f"原图={int(c['natW'])}x{int(c['natH'])} b64len={c['len']}")
+
+        sized = sorted(candidates, key=lambda x: x["w"] * x["h"], reverse=True)
+        bg = sized[0]
+        slide = sized[1] if len(sized) >= 2 else sized[0]
+        self.log(f"[INFO] 选定 bg=[0] {int(bg['w'])}x{int(bg['h'])} "
+                 f"slide=[1] {int(slide['w']) if len(sized) >= 2 else '-'}x"
+                 f"{int(slide['h']) if len(sized) >= 2 else '-'}")
+        return bg["b64"], slide["b64"]
+
+    async def _measure_captcha_geometry(self, page: Page) -> Optional[dict]:
+        """测量 captcha 几何数据，给距离换算用。
+        典型阿里云 FeiLin: bg=300, puzzle=52, track=300, slider=40
+          puzzle 可移动范围 = 300-52 = 248
+          drag   可移动范围 = 300-40 = 260
+          比例 = 248/260 ≈ 0.954
+          OCR 返 188 → 拖手实际拖动 = 188 / 0.954 = 197 px
+        """
+        return await page.evaluate(
+            r"""() => {
+                const bg = document.querySelector('#aliyunCaptcha-img');
+                const puzzle = document.querySelector('#aliyunCaptcha-puzzle');
+                const body = document.querySelector('#aliyunCaptcha-sliding-body');
+                const slider = document.querySelector('#aliyunCaptcha-sliding-slider');
+                if (!bg || !puzzle || !body || !slider) return null;
+                const br = bg.getBoundingClientRect();
+                const pr = puzzle.getBoundingClientRect();
+                const tr = body.getBoundingClientRect();
+                const sr = slider.getBoundingClientRect();
+                return {
+                    bgW: br.width, bgX: br.x,
+                    puzzleW: pr.width, puzzleX: pr.x,
+                    trackW: tr.width, trackX: tr.x,
+                    sliderW: sr.width, sliderX: sr.x,
+                };
+            }"""
+        )
+
+    def _convert_ocr_distance(self, ocr_distance: int, geom: Optional[dict]) -> int:
+        """阻尼系数动态变化（实测从 0.78 到 0.96 都有），无法用固定常数换算。
+        改在 _drag_captcha_slider 里用"先标定 + 拖回 + 用实测 ratio 拖"策略。
+        这里直接 pass-through。"""
+        if geom:
+            try:
+                init_offset = geom["puzzleX"] - geom["bgX"]
+                self.log(f"[INFO] 几何 init_offset={init_offset:.1f} "
+                         f"bg={int(geom['bgW'])} puzzle={int(geom['puzzleW'])} "
+                         f"track={int(geom['trackW'])} slider={int(geom['sliderW'])}")
+            except Exception:
+                pass
+        return ocr_distance
+
+    async def _smooth_drag_segment(self, page: Page, from_x: float, to_x: float,
+                                    y: float, steps: int = 15):
+        """从 (from_x, y) 平滑拖到 (to_x, y)，ease-out + 微抖动模拟真人轨迹。
+        要求当前已经 mouse.down，期间不松鼠标。"""
+        delta = to_x - from_x
+        for i in range(1, steps + 1):
+            t = i / steps
+            progress = 1 - (1 - t) ** 2
+            cur_x = from_x + delta * progress
+            cur_y = y + (1 if i % 2 == 0 else -1)
+            await page.mouse.move(cur_x, cur_y, steps=1)
+            await asyncio.sleep(0.012)
+
+    async def _drag_captcha_slider(self, page: Page, distance: int):
+        """按 OCR 给的"拼图应该走多远"（distance）拖动滑块。
+        阻尼系数动态变化（实测 0.78-0.96 都有），所以用三段式策略：
+          ① 拖 50px 标定 → 测此时拼图实际移动量 → 算实测 ratio
+          ② 拖回原位（清零进度，避免阿里云检测半路停顿）
+          ③ 用实测 ratio 计算正式拖动距离，一气呵成拖到位
+        全程在一次 mouse.down/mouse.up 内完成。"""
+        # 阿里云阻尼是非线性的：ratio 跟距离近似线性：ratio(d) = a + b*d
+        # 实测（5 次拟合）：a ≈ 0.08, b ≈ 0.0035
+        # 拼图位移 = d × ratio(d) = a*d + b*d² —— 是个二次函数
+        # 要让拼图走 target，解二次方程：b*d² + a*d - target = 0
+        # 标定段测出 (CAL_DIST, ratio_cal) → 修正 a：a = ratio_cal - b*CAL_DIST
+        import math as _math
+        CALIBRATION_DISTANCE = 100   # 标定段距离
+        MIN_RATIO_FOR_TRUST = 0.3    # 标定 ratio 低于此 → 用默认 a
+        DEFAULT_RATIO_A = 0.08       # 经验截距
+        DEFAULT_RATIO_B = 0.0035     # 经验斜率（认为基本不变）
+        FALLBACK_RATIO = 0.88        # 完全无法测量时的常数 ratio
+
+        # ---- 1) 找拖手 ----
+        DRAG_SELECTORS = [
+            "#aliyunCaptcha-sliding-button",
+            ".aliyunCaptcha-sliding-button",
+            "#aliyunCaptcha-sliding-slider",
+            ".aliyunCaptcha-sliding-slider",
+            ".window-show #aliyunCaptcha-sliding-button",
+            ".window-show .aliyunCaptcha-sliding-button",
+            ".window-show #aliyunCaptcha-sliding-slider",
+            ".window-show .aliyunCaptcha-sliding-slider",
+            ".window-show [id*='sliding-button']",
+            ".window-show [class*='sliding-button']",
+            ".window-show [id*='sliding-slider']",
+            ".window-show [class*='sliding-slider']",
+            ".window-show [id*='slider']:not([id*='close'])",
+            ".window-show [class*='slider']:not([class*='close'])",
+            ".window-show .nc_iconfont",
+            ".window-show .btn_slide",
+            ".window-show button:not(#aliyunCaptcha-btn-close):not([id*='close']):not([class*='close'])",
+        ]
+        drag_el = None
+        chosen_sel = None
+        for sel in DRAG_SELECTORS:
+            try:
+                loc = page.locator(sel).first
+                if await loc.count() > 0 and await loc.is_visible():
+                    el_id = await loc.get_attribute("id") or ""
+                    el_cls = await loc.get_attribute("class") or ""
+                    if "close" in el_id.lower() or "close" in el_cls.lower():
+                        continue
+                    drag_el = loc
+                    chosen_sel = sel
+                    break
+            except Exception:
+                continue
+        if drag_el is None:
+            raise RuntimeError("找不到滑块拖手元素（所有 selector 都没命中）")
+        self.log(f"[INFO] 选中拖手 selector: {chosen_sel}")
+
+        box = await drag_el.bounding_box()
+        if not box:
+            raise RuntimeError("拖手没有 bounding box")
+
+        # 测初始位置：拼图块 + 拼图相对背景图的偏移
+        init = await page.evaluate(r"""() => {
+            const p = document.querySelector('#aliyunCaptcha-puzzle');
+            const bg = document.querySelector('#aliyunCaptcha-img');
+            const body = document.querySelector('#aliyunCaptcha-sliding-body');
+            const s = document.querySelector('#aliyunCaptcha-sliding-slider');
+            return {
+                puzzleX: p ? p.getBoundingClientRect().x : null,
+                bgX: bg ? bg.getBoundingClientRect().x : null,
+                trackX: body ? body.getBoundingClientRect().x : null,
+                trackW: body ? body.getBoundingClientRect().width : null,
+                sliderW: s ? s.getBoundingClientRect().width : null,
+            };
+        }""")
+        init_offset = (init["puzzleX"] - init["bgX"]) if (
+            init["puzzleX"] is not None and init["bgX"] is not None) else 0.0
+        max_drag_distance = (init["trackW"] - init["sliderW"]) if (
+            init["trackW"] and init["sliderW"]) else 260
+
+        start_x = box["x"] + box["width"] / 2
+        start_y = box["y"] + box["height"] / 2
+        await page.mouse.move(start_x, start_y)
+        await page.mouse.down()
+
+        # ---- 2) 标定段：拖 CALIBRATION_DISTANCE px 测 ratio ----
+        self.log(f"[INFO] 标定: 先拖 {CALIBRATION_DISTANCE}px 测阻尼")
+        await self._smooth_drag_segment(
+            page, start_x, start_x + CALIBRATION_DISTANCE, start_y, steps=12)
+        await asyncio.sleep(0.25)
+        cal = await page.evaluate(r"""() => {
+            const p = document.querySelector('#aliyunCaptcha-puzzle');
+            return p ? p.getBoundingClientRect().x : null;
+        }""")
+        if cal is not None and init["puzzleX"] is not None:
+            puzzle_moved_cal = cal - init["puzzleX"]
+            measured_ratio = puzzle_moved_cal / CALIBRATION_DISTANCE
+        else:
+            puzzle_moved_cal = 0.0
+            measured_ratio = -1.0  # 信号：测量失败
+        self.log(f"[INFO] 标定结果: 鼠标移 {CALIBRATION_DISTANCE}px → "
+                 f"拼图移 {puzzle_moved_cal:.1f}px, ratio={measured_ratio:.4f}")
+
+        # ---- 3) 拖回原位 ----
+        self.log(f"[INFO] 拖回原位，准备正式拖动")
+        await self._smooth_drag_segment(
+            page, start_x + CALIBRATION_DISTANCE, start_x, start_y, steps=12)
+        await asyncio.sleep(0.2)
+
+        # ---- 4) 用线性 ratio 模型解二次方程算正式拖动距离 ----
+        # 模型: ratio(d) = a + b*d ，拼图位移 = d * ratio(d) = a*d + b*d²
+        # 要让拼图位移 = effective_target，解 b*d² + a*d - target = 0
+        effective_target = distance - init_offset
+        b = DEFAULT_RATIO_B
+        if measured_ratio >= MIN_RATIO_FOR_TRUST:
+            # 标定可信：用 b（斜率）固定，从标定点反推 a（截距）
+            a = measured_ratio - b * CALIBRATION_DISTANCE
+            model_src = f"标定 (ratio_cal={measured_ratio:.4f} @ {CALIBRATION_DISTANCE}px)"
+        else:
+            # 标定不可信：用默认经验值
+            a = DEFAULT_RATIO_A
+            model_src = "默认经验值"
+        self.log(f"[INFO] 线性 ratio 模型: ratio(d) = {a:.4f} + {b} × d  ({model_src})")
+
+        disc = a * a + 4 * b * effective_target
+        if b > 0 and disc > 0:
+            real_drag = int(round((-a + _math.sqrt(disc)) / (2 * b)))
+        else:
+            real_drag = int(round(effective_target / FALLBACK_RATIO))
+            self.log(f"[WARN] 二次解失败，回退 fallback_ratio={FALLBACK_RATIO}")
+
+        # 边界约束：不超过滑轨可拖范围
+        if real_drag > max_drag_distance:
+            self.log(f"[WARN] 算出鼠标拖动 {real_drag}px 超过轨道上限 "
+                     f"{int(max_drag_distance)}px，按上限拖")
+            real_drag = int(max_drag_distance)
+        elif real_drag < 0:
+            real_drag = 0
+        # 预测拼图最终位置（验证模型）
+        predicted_puzzle = real_drag * (a + b * real_drag)
+        self.log(f"[INFO] 正式拖动: OCR={distance}px - init_offset={init_offset:.1f} "
+                 f"= {effective_target:.1f} → 鼠标拖 {real_drag}px "
+                 f"(模型预测拼图到 {predicted_puzzle:.1f}px)")
+
+        await self._smooth_drag_segment(
+            page, start_x, start_x + real_drag, start_y, steps=25)
+        await asyncio.sleep(0.2)
+        await page.mouse.up()
+
+        # ---- 5) 最终量一次拼图位置（验证效果） ----
+        await asyncio.sleep(0.25)
+        final = await page.evaluate(r"""() => {
+            const p = document.querySelector('#aliyunCaptcha-puzzle');
+            return p ? p.getBoundingClientRect().x : null;
+        }""")
+        if final is not None and init["puzzleX"] is not None:
+            final_moved = final - init["puzzleX"]
+            diff = final_moved - distance
+            self.log(f"[OK] 拖动完成: 拼图最终移 {final_moved:.1f}px "
+                     f"(OCR 目标 {distance}px, 差 {diff:+.1f}px)")
+        else:
+            self.log(f"[OK] 已模拟拖动 {real_drag}px，等 captcha 框消失 ...")
+
+    async def _handle_captcha_auto(self, page: Page):
+        """jfbym 自动识别 + 模拟拖动。"""
+        token = (self.cfg.yydsocr_token or "").strip() or JFBYM_TOKEN
+        if not token:
+            raise RuntimeError("自动模式需要 token（GUI 填或代码里 JFBYM_TOKEN 常量）")
+
+        # ---- Step 1: dump captcha DOM 到日志（首次跑用来确认结构）----
+        # 仅把图片 base64 截掉（太长），其他保留，方便看真正的拖手元素
+        # ---- 1) 取图（共用 helper）----
+        bg_b64, slide_b64 = await self._capture_captcha_images(page)
+
+        # ---- 2) POST 到 jfbym 拿距离 ----
+        import httpx as _httpx
+        payload = {
+            "token": token,
+            "type": JFBYM_CAPTCHA_TYPE,
+            "slide_image": slide_b64,
+            "background_image": bg_b64,
+        }
+        try:
+            with _httpx.Client(timeout=20.0) as client:
+                r = client.post(JFBYM_API_URL, json=payload)
+            body_text = r.text
+            self.log(f"[INFO] jfbym HTTP {r.status_code} body={body_text[:200]}")
+            obj = r.json()
+        except Exception as e:
+            raise RuntimeError(f"jfbym 请求失败: {type(e).__name__}: {str(e)[:120]}")
+        if obj.get("code") != 10000:
+            raise RuntimeError(f"jfbym code={obj.get('code')} msg={obj.get('msg')}")
+        distance_str = (obj.get("data") or {}).get("data")
+        try:
+            distance = int(float(distance_str))
+        except Exception:
+            raise RuntimeError(f"jfbym 返回的 distance 不是数字: {distance_str!r}")
+        self.log(f"[OK] jfbym 识别成功，OCR 原始距离 = {distance} px")
+
+        # ---- 3) 几何换算 + 拖动 ----
+        geom = await self._measure_captcha_geometry(page)
+        real_distance = self._convert_ocr_distance(distance, geom)
+        await self._drag_captcha_slider(page, real_distance)
+
+    async def _handle_captcha_yydsocr(self, page: Page):
+        """yydsocr 自动识别 + 模拟拖动（auto2 模式）。"""
+        # ---- 1) 取图（共用 helper）----
+        bg_b64, slide_b64 = await self._capture_captcha_images(page)
+
+        # ---- 2) POST 到 yydsocr 拿距离 ----
+        import httpx as _httpx
+        payload = {
+            "secret_key": YYDSOCR_USER_KEY,
+            "developer_code": YYDSOCR_DEVELOPER_CODE,
+            "type_id": YYDSOCR_TYPE,
+            "background_image": bg_b64,
+            "slide_image": slide_b64,
+        }
+        try:
+            with _httpx.Client(timeout=20.0) as client:
+                r = client.post(YYDSOCR_API_URL, json=payload)
+            body_text = r.text
+            self.log(f"[INFO] yydsocr HTTP {r.status_code} body={body_text[:200]}")
+            obj = r.json()
+        except Exception as e:
+            raise RuntimeError(f"yydsocr 请求失败: {type(e).__name__}: {str(e)[:120]}")
+        # yydsocr 返回结构：{'data': {'data': '<distance>', ...}, ...}
+        distance_str = (obj.get("data") or {}).get("data")
+        try:
+            distance = int(float(distance_str))
+        except Exception:
+            raise RuntimeError(f"yydsocr 返回的 distance 不是数字: {distance_str!r} (完整响应: {body_text[:200]})")
+        self.log(f"[OK] yydsocr 识别成功，OCR 原始距离 = {distance} px")
+
+        # ---- 3) 几何换算 + 拖动 ----
+        geom = await self._measure_captcha_geometry(page)
+        real_distance = self._convert_ocr_distance(distance, geom)
+        await self._drag_captcha_slider(page, real_distance)
 
 
     async def vote_with_retries(self, browser: Browser, vote_id: int,
@@ -1744,6 +2278,14 @@ class App(tk.Tk):
         # Edge, Brave, and bundled chromium-1217 all as the same engine.
         self.var_browser     = tk.StringVar(value=cfg.browser_path)
         self.var_debug       = tk.BooleanVar(value=cfg.debug_mode)
+        # yydsocr_token 不再从 GUI 收，沿用启动时的原值（auto 模式备用）
+        self._yydsocr_token_in_use: str = cfg.yydsocr_token or ""
+        # 投票流程模式 single-select
+        self.var_flow_mode = tk.StringVar(value=cfg.flow_mode or "full")
+        # captcha 处理模式：manual / auto / cookie
+        self.var_captcha_mode = tk.StringVar(value=cfg.captcha_mode or "manual")
+        # 用户粘贴的 cookie 字符串初值，给 _build() 里的 Text 控件用
+        self._initial_user_cookies: str = cfg.user_cookies or ""
         self.var_captcha_x   = tk.IntVar(value=cfg.captcha_offset_x)
         self.var_captcha_y   = tk.IntVar(value=cfg.captcha_offset_y)
         self.var_captcha_hint = tk.StringVar(
@@ -1834,6 +2376,49 @@ class App(tk.Tk):
             row=r, column=1, sticky="w", padx=8, pady=3)
         r += 1
 
+        # 验证码处理模式单选
+        ttk.Label(cfg_frame, text="验证码处理:").grid(
+            row=r, column=0, sticky="w", padx=8, pady=3)
+        cap_row = ttk.Frame(cfg_frame)
+        cap_row.grid(row=r, column=1, sticky="w", padx=8, pady=3)
+        ttk.Radiobutton(cap_row, text="手动",
+                        variable=self.var_captcha_mode,
+                        value="manual").pack(side="left", padx=(0, 12))
+        ttk.Radiobutton(cap_row, text="自动",
+                        variable=self.var_captcha_mode,
+                        value="auto").pack(side="left", padx=(0, 12))
+        ttk.Radiobutton(cap_row, text="自动2",
+                        variable=self.var_captcha_mode,
+                        value="auto2").pack(side="left", padx=(0, 12))
+        ttk.Radiobutton(cap_row, text="Cookie",
+                        variable=self.var_captcha_mode,
+                        value="cookie").pack(side="left")
+        r += 1
+
+        # Cookie 文本框（cookie 模式专用 —— 在浏览器 console 跑 document.cookie 后粘贴）
+        ttk.Label(cfg_frame, text="Cookie 字符串:").grid(
+            row=r, column=0, sticky="nw", padx=8, pady=3)
+        self.txt_cookies = tk.Text(cfg_frame, height=3, wrap="word")
+        self.txt_cookies.grid(row=r, column=1, sticky="we", padx=8, pady=3)
+        if self._initial_user_cookies:
+            self.txt_cookies.insert("1.0", self._initial_user_cookies)
+        r += 1
+
+        # 投票流程模式单选
+        ttk.Label(cfg_frame, text="投票流程:").grid(
+            row=r, column=0, sticky="w", padx=8, pady=3)
+        flow_row = ttk.Frame(cfg_frame)
+        flow_row.grid(row=r, column=1, sticky="w", padx=8, pady=3)
+        ttk.Radiobutton(flow_row,
+                        text="主赛道+副赛道",
+                        variable=self.var_flow_mode,
+                        value="full").pack(side="left", padx=(0, 12))
+        ttk.Radiobutton(flow_row,
+                        text="主赛道快刷",
+                        variable=self.var_flow_mode,
+                        value="quick").pack(side="left")
+        r += 1
+
         # captcha-offset sliders: dial in the popup position by hand when
         # CSS centering doesn't fully win against the vendor's SDK.
         ttk.Label(cfg_frame, text="验证码 X 偏移 (px):").grid(
@@ -1901,6 +2486,11 @@ class App(tk.Tk):
             concurrency=int(self.var_concurrency.get()),
             total_votes=int(self.var_total.get()),
             debug_mode=bool(self.var_debug.get()),
+            # captcha_mode 从 radio 读；yydsocr_token 沿用启动缓存
+            captcha_mode=(self.var_captcha_mode.get() or "manual"),
+            yydsocr_token=self._yydsocr_token_in_use,
+            user_cookies=self.txt_cookies.get("1.0", "end").strip(),
+            flow_mode=(self.var_flow_mode.get() or "full"),
             browser_engine="chromium",  # field retained for config-yaml compat
             browser_path=self.var_browser.get(),
             headless=False,  # 半自动需要可见浏览器供人工解滑块
