@@ -55,6 +55,7 @@ if defined ICON (
         --add-data "reconstructed\config.yaml;." ^
         --collect-all playwright ^
         --collect-all playwright_stealth ^
+        --collect-all patchright ^
         "%ENTRY%"
 ) else (
     "%PY%" -m PyInstaller ^
@@ -65,6 +66,7 @@ if defined ICON (
         --add-data "reconstructed\config.yaml;." ^
         --collect-all playwright ^
         --collect-all playwright_stealth ^
+        --collect-all patchright ^
         "%ENTRY%"
 )
 

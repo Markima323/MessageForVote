@@ -55,7 +55,15 @@ import httpx
 import yaml
 
 # [HARD] bundled
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+# patchright 是 Playwright 的"反检测补丁版"，API 跟原版完全一致。
+# 用它来绕 Cloudflare Turnstile / 各类机器人检测。如果 patchright 没装就
+# fallback 到原版 Playwright（保留兼容）。
+try:
+    from patchright.async_api import async_playwright, Browser, BrowserContext, Page
+    _USING_PATCHRIGHT = True
+except ImportError:
+    from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+    _USING_PATCHRIGHT = False
 from playwright_stealth import Stealth  # playwright_stealth 2.0.x API
 
 # [STRONG] pythonnet + clr_loader bundled — the program may invoke .NET
@@ -86,6 +94,9 @@ class Config:
     # cookie 模式下用户粘贴的 cookie 字符串
     # 格式：在浏览器 console 跑 document.cookie 拿到的 "name=value; name=value; ..."
     user_cookies: str = ""
+    # FlareSolverr 服务地址（用来过 Cloudflare 5s 盾）。空 → 不启用。
+    # 典型: "http://localhost:8191"。需要预先 docker run FlareSolverr 容器。
+    flaresolverr_url: str = ""
     # 验证码处理模式：
     #   "manual" = 等用户手动滑滑块（默认）
     #   "auto"   = 调 yydsocr/jfbym API 自动识别（代码保留待用）
@@ -261,6 +272,9 @@ CONFIRM_MODAL_TIMEOUT_MS  = 20_000
 # the same as CONFIRM_MODAL_TIMEOUT_MS so a stuck attempt advances.
 SUCCESS_MODAL_TIMEOUT_MS  = CONFIRM_MODAL_TIMEOUT_MS
 NAVIGATE_TIMEOUT_MS       = 120_000  # bumped to 2 min — slow paid proxies otherwise crash here
+# Cloudflare 5s 盾验证有时会卡很久（指纹检测、JS 挑战），最多等这么久才放弃。
+# 检测到 challenge 元素就持续轮询，没检测到就直接通过。
+CLOUDFLARE_WAIT_TIMEOUT_MS = 180_000   # 3 minutes
 # MAX_RETRIES disabled per user request — slow page loads were triggering
 # retries during human captcha-solving, refreshing the page and losing
 # the user's in-progress slider drag. Set back to 3 to re-enable.
@@ -318,20 +332,85 @@ def _tile_for_slot(slot: int, screen_w: int, screen_h: int,
 
 
 def _make_captcha_init_script(offset_x: int, offset_y: int) -> str:
-    """Build an init script that pins .window-show to viewport center plus
-    a manual (offset_x, offset_y) pixel offset. The offset is exposed via
-    `window.__captchaOffsetX/Y` globals — Python can `page.evaluate(...)`
-    new values into them mid-flight to reposition a visible captcha
-    without waiting for the next vote.  `window.__captchaFixAll()` is
-    also exposed so the slider can trigger an immediate redraw."""
+    """三层组合方案把验证码弹窗钉到 viewport 中心 + (offset_x, offset_y)：
+
+    1. 注入 `<style id="__captcha_center_style__">`，里面用 **ID 选择器**
+       `#aliyunCaptcha-window-popup` / `#aliyunCaptcha-mask` —— 实测 DOM
+       证明 Aliyun 飞邻 SDK 的真实元素是 ID 命名，class 是 `window-show /
+       window-hidden`、`mask-show / mask-hidden`。ID 选择器 specificity
+       (0,1,0,0) 比 class (0,0,1,0) 高，配合 `!important` 能压住 SDK 自带的
+       同名 ID 规则。
+    2. 同时直接在元素上写 inline `style.setProperty(..., 'important')`：
+       inline + !important 在 CSS 级联里是最强一档（用户 stylesheet 之外
+       无人可压），是终极兜底。
+    3. MutationObserver + 500ms 定时器，SDK 改写 style/class 后立刻覆盖回来。
+
+    Python 端调 `window.__captchaSetOffset(x, y)` 即时更新位置；
+    `window.__captchaFixAll()` 兼容老调用点。"""
     return r"""
 (() => {
-    // Initial values baked from the Python side. Python can overwrite
-    // these globals at any time to change the live position.
     window.__captchaOffsetX = %d;
     window.__captchaOffsetY = %d;
+    const STYLE_ID = '__captcha_center_style__';
 
-    function forceCenter(el) {
+    function buildCss() {
+        const x = window.__captchaOffsetX | 0;
+        const y = window.__captchaOffsetY | 0;
+        // 用 ID 选择器，specificity 高于 SDK 同名 ID（同特异性后写胜出）
+        return `
+#aliyunCaptcha-window-popup,
+.window-show {
+    position: fixed !important;
+    left: calc(50%% + ${x}px) !important;
+    top:  calc(50%% + ${y}px) !important;
+    right: auto !important;
+    bottom: auto !important;
+    inset: auto !important;
+    transform: translate(-50%%, -50%%) !important;
+    margin: 0 !important;
+    z-index: 2147483646 !important;
+}
+#aliyunCaptcha-mask,
+.mask-show {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: auto !important;
+    bottom: auto !important;
+    inset: 0 0 auto auto !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 2147483645 !important;
+}
+.custom-alert-box {
+    position: fixed !important;
+    left: calc(50%% + ${x}px) !important;
+    top:  calc(50%% + ${y}px) !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translate(-50%%, -50%%) !important;
+    margin: 0 !important;
+    z-index: 2147483646 !important;
+}
+`;
+    }
+
+    function ensureStyle() {
+        let head = document.head || document.documentElement;
+        if (!head) return null;
+        let el = document.getElementById(STYLE_ID);
+        if (!el) {
+            el = document.createElement('style');
+            el.id = STYLE_ID;
+            el.type = 'text/css';
+            head.appendChild(el);
+        } else if (el.parentNode !== head) {
+            head.appendChild(el);
+        }
+        return el;
+    }
+
+    function setCenterInline(el) {
         if (!el) return;
         const s = el.style;
         const x = window.__captchaOffsetX | 0;
@@ -341,42 +420,60 @@ def _make_captcha_init_script(offset_x: int, offset_y: int) -> str:
         s.setProperty('top',  `calc(50%% + ${y}px)`, 'important');
         s.setProperty('right', 'auto', 'important');
         s.setProperty('bottom', 'auto', 'important');
+        s.setProperty('inset', 'auto', 'important');
         s.setProperty('transform', 'translate(-50%%, -50%%)', 'important');
         s.setProperty('margin', '0', 'important');
         s.setProperty('z-index', '2147483646', 'important');
     }
-    function forceFullViewport(el) {
+    function setMaskInline(el) {
         if (!el) return;
         const s = el.style;
         s.setProperty('position', 'fixed', 'important');
         s.setProperty('left', '0', 'important');
         s.setProperty('top', '0', 'important');
+        s.setProperty('right', 'auto', 'important');
+        s.setProperty('bottom', 'auto', 'important');
+        s.setProperty('inset', '0 0 auto auto', 'important');
         s.setProperty('width', '100vw', 'important');
         s.setProperty('height', '100vh', 'important');
         s.setProperty('z-index', '2147483645', 'important');
     }
-    function fixAll() {
-        document.querySelectorAll('.window-show').forEach(forceCenter);
-        document.querySelectorAll('.mask-show').forEach(forceFullViewport);
-        // Re-center the page's own confirm/success modal boxes too. We
-        // touch ONLY the inner box (.custom-alert-box), not the outer
-        // overlay — the overlay is the dim backdrop and must stay full
-        // viewport, while the box is the actual popup content.
-        document.querySelectorAll('.custom-alert-box').forEach(forceCenter);
-    }
-    // Expose fixAll so a Python-side evaluate can trigger an immediate
-    // redraw after pushing new offsets — saves up to 300 ms over the
-    // setInterval fallback.
-    window.__captchaFixAll = fixAll;
 
-    fixAll();
+    function applyAll() {
+        // 1) 样式表层
+        const el = ensureStyle();
+        if (el) {
+            const css = buildCss();
+            if (el.textContent !== css) el.textContent = css;
+            const head = document.head;
+            if (head && el.parentNode === head && head.lastElementChild !== el) {
+                head.appendChild(el);
+            }
+        }
+        // 2) inline 终极兜底（用 ID 直接抓到 SDK 真实元素）
+        document.querySelectorAll(
+            '#aliyunCaptcha-window-popup, .window-show, .custom-alert-box'
+        ).forEach(setCenterInline);
+        document.querySelectorAll(
+            '#aliyunCaptcha-mask, .mask-show'
+        ).forEach(setMaskInline);
+    }
+
+    window.__captchaSetOffset = function (x, y) {
+        window.__captchaOffsetX = x | 0;
+        window.__captchaOffsetY = y | 0;
+        applyAll();
+    };
+    window.__captchaFixAll = applyAll;
+
+    applyAll();
     try {
-        new MutationObserver(fixAll).observe(document.documentElement, {
+        new MutationObserver(applyAll).observe(document.documentElement, {
             childList: true, subtree: true,
             attributes: true, attributeFilter: ['style', 'class'],
         });
-    } catch (e) { /* observer may fail on early frames */ }
-    setInterval(fixAll, 300);
+    } catch (e) {}
+    setInterval(applyAll, 300);
 })();
 """ % (offset_x, offset_y)
 
@@ -431,11 +528,23 @@ class Voter:
         # callback fires whenever a PK round resolves a fresh rank for the
         # target character. Receiver (the GUI) displays it on the panel.
         self.on_rank = on_rank or (lambda _name, _rank: None)
-        # callback fires whenever a Pk2 succeeds. Receiver (the GUI) updates
-        # the always-on-top system popup.
+        # callback fires whenever a SUCCESSFUL POST /Active2551/Vote for the
+        # configured target character lands. Receiver (the GUI) updates the
+        # always-on-top system popup. 名字保留 on_pk_count / pk_success_count
+        # 是为了不动 GUI 侧调用点 —— 语义已经改成"当前已成功 fetch 的 /Vote 票数"。
         self.on_pk_count = on_pk_count or (lambda _n: None)
-        # 累计 Pk2 (errCode==0) 成功次数
         self.pk_success_count: int = 0
+
+    def _bump_vote_count_if_target(self, name: str) -> None:
+        """目标角色（cfg.target_character_name）成功投出一票时累计计数 + 推到 GUI。
+        _fetch_vote 和 _first_vote_via_ui 的 '确认投票 toast' 路径都会调用它。"""
+        target = (self.cfg.target_character_name or "").strip()
+        if target and name == target:
+            self.pk_success_count += 1
+            try:
+                self.on_pk_count(self.pk_success_count)
+            except Exception:
+                pass
 
     async def _wait_for_captcha_or_modal(self, page: Page,
                                           timeout_ms: int) -> Optional[str]:
@@ -569,8 +678,10 @@ class Voter:
             ctx = await browser.new_context(proxy={"server": proxy["server"]})
         else:
             ctx = await browser.new_context()
-        # [HARD] playwright_stealth is bundled → applied per context
-        await Stealth().apply_stealth_async(ctx)
+        # patchright 自带反检测，跟 playwright_stealth 同时用会重复 patch
+        # 导致指纹异常被 Cloudflare 识别。所以只在原版 playwright 模式下用 Stealth。
+        if not _USING_PATCHRIGHT:
+            await Stealth().apply_stealth_async(ctx)
 
         # ---- inject CSS that forces captcha & modal popups to center of
         # viewport. The Aliyun captcha (.window-show) and the page's own
@@ -598,6 +709,120 @@ class Voter:
             await route.continue_()
         await ctx.route("**/*", _route)
         return ctx
+
+    async def _wait_for_cloudflare_clear(self, page: Page,
+                                          vote_id: int) -> None:
+        """等 Cloudflare 5s 盾走完。
+        判断标准：
+          - 页面 title 是 'Just a moment...' / '请稍候...'
+          - 存在 #challenge-form / #cf-spinner / .cf-im-under-attack
+          - 存在 iframe 指向 challenges.cloudflare.com
+        命中任何一条就说明 Cloudflare 还在验证，最多等 CLOUDFLARE_WAIT_TIMEOUT_MS
+        让它自己走完（patchright 自带反检测，多数 1-15s 通过）。
+        期间不刷新、不报超时——用户多次反馈这里 'cloudflare 还在转，脚本就刷新了'。"""
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + CLOUDFLARE_WAIT_TIMEOUT_MS / 1000
+        check_js = r"""() => {
+            const t = (document.title || '').toLowerCase();
+            if (t.includes('just a moment') || t.includes('请稍候') ||
+                t.includes('attention required')) return true;
+            if (document.querySelector('#challenge-form, #cf-spinner, '
+                + '.cf-im-under-attack, .cf-challenge-running, '
+                + '.cf-browser-verification, #cf-please-wait')) return true;
+            const iframes = document.querySelectorAll('iframe');
+            for (const f of iframes) {
+                const src = (f.src || '');
+                if (src.includes('challenges.cloudflare.com')) return true;
+            }
+            return false;
+        }"""
+        try:
+            in_challenge = await page.evaluate(check_js)
+        except Exception:
+            return
+        if not in_challenge:
+            return
+        self.log(f"[INFO] [{vote_id}] 检测到 Cloudflare 验证页，等它走完 "
+                 f"(最多 {CLOUDFLARE_WAIT_TIMEOUT_MS // 1000}s，期间不刷新)")
+        last_log = loop.time()
+        while loop.time() < deadline:
+            await asyncio.sleep(2.0)
+            try:
+                still = await page.evaluate(check_js)
+            except Exception:
+                still = False
+            if not still:
+                elapsed = int(loop.time() - (deadline - CLOUDFLARE_WAIT_TIMEOUT_MS / 1000))
+                self.log(f"[OK] [{vote_id}] Cloudflare 通过 (用了 {elapsed}s)")
+                # 通过后再多等 1s 让目标页 JS 跑起来
+                await asyncio.sleep(1.0)
+                return
+            now = loop.time()
+            if now - last_log > 15:
+                remaining = int(deadline - now)
+                self.log(f"[INFO] [{vote_id}] Cloudflare 仍在验证，已等 "
+                         f"{int(CLOUDFLARE_WAIT_TIMEOUT_MS / 1000 - remaining)}s，"
+                         f"还能等 {remaining}s")
+                last_log = now
+        self.log(f"[WARN] [{vote_id}] Cloudflare 验证 {CLOUDFLARE_WAIT_TIMEOUT_MS // 1000}s "
+                 f"还没过，放弃本轮等待，后续可能拿不到 character.js")
+
+    async def _solve_cloudflare_via_flaresolverr(
+            self, proxy_url: Optional[str], vote_id: int) -> Optional[tuple]:
+        """让 FlareSolverr 用指定代理 IP 过一次 Cloudflare 拿到 cf_clearance 等 cookie。
+        返回 (cookies_list, user_agent) 或 None（失败）。
+
+        FlareSolverr API:
+          POST {flaresolverr_url}/v1
+          { "cmd": "request.get", "url": ..., "maxTimeout": ..., "proxy": {"url": ...} }
+          → { "status": "ok", "solution": {"cookies": [...], "userAgent": "...", ...} }
+        """
+        fs_url = (self.cfg.flaresolverr_url or "").strip().rstrip("/")
+        if not fs_url:
+            return None
+        endpoint = f"{fs_url}/v1"
+        payload = {
+            "cmd": "request.get",
+            "url": self.VOTE_PAGE_URL,
+            "maxTimeout": 60000,
+        }
+        if proxy_url:
+            payload["proxy"] = {"url": proxy_url}
+        try:
+            import httpx as _httpx
+            self.log(f"[INFO] [{vote_id}] FlareSolverr 过 Cloudflare 中"
+                     f" (代理 {proxy_url or '本机'}) ...")
+            with _httpx.Client(timeout=80.0) as client:
+                r = client.post(endpoint, json=payload)
+            obj = r.json()
+        except Exception as e:
+            self.log(f"[ERROR] [{vote_id}] FlareSolverr 调用异常: "
+                     f"{type(e).__name__}: {str(e)[:120]}")
+            return None
+        if obj.get("status") != "ok":
+            self.log(f"[ERROR] [{vote_id}] FlareSolverr 返回非 ok: "
+                     f"{str(obj)[:200]}")
+            return None
+        sol = obj.get("solution") or {}
+        cookies_raw = sol.get("cookies") or []
+        ua = sol.get("userAgent") or ""
+        # 转成 Playwright add_cookies 接受的格式
+        cookies = []
+        for c in cookies_raw:
+            if not c.get("name"):
+                continue
+            cookies.append({
+                "name": c["name"],
+                "value": c.get("value", ""),
+                "domain": c.get("domain", ".starrailawards.com"),
+                "path": c.get("path", "/"),
+                "secure": bool(c.get("secure", False)),
+                "httpOnly": bool(c.get("httpOnly", False)),
+            })
+        cf_clearance = next((c for c in cookies if c["name"] == "cf_clearance"), None)
+        self.log(f"[OK] [{vote_id}] FlareSolverr 拿到 {len(cookies)} 个 cookie，"
+                 f"cf_clearance={'有' if cf_clearance else '无'}, UA={ua[:60]}…")
+        return cookies, ua
 
     async def _inject_user_cookies(self, ctx: BrowserContext, vote_id: int) -> int:
         """解析 cfg.user_cookies 字符串，注入到 ctx，返回注入条数。
@@ -676,6 +901,37 @@ class Voter:
         if not self.cfg.headless:
             await self._tile_window_cdp(ctx, page, slot, vote_id)
         try:
+            # ★ FlareSolverr 过 Cloudflare（若配置了 flaresolverr_url）：
+            # 先让 FS 用本 ctx 的代理 IP 通过 Cloudflare，拿到 cf_clearance cookie，
+            # 然后注入到本 ctx，这样 page.goto 时浏览器直接被 Cloudflare 放行
+            if (self.cfg.flaresolverr_url or "").strip():
+                proxy_url = None
+                try:
+                    cks_existing = await ctx.cookies(self.VOTE_PAGE_URL)
+                    # 简单获取 ctx 的代理：从 _new_context 调用方传过来不直观，
+                    # 这里干脆通过 ctx._impl_obj 获取（兼容性差），改成直接
+                    # 把 proxy 在 _attempt 的调用方传进来更稳。临时方案：
+                    # 让 FlareSolverr 不走代理（用 FS 容器自己的网络），后续
+                    # 把投票请求走代理 IP 即可（投票时已通过 cookie 标记）。
+                    pass
+                except Exception:
+                    pass
+                # 注意：这里 proxy_url 设为 None — FlareSolverr 用自己的容器网络
+                # 过 Cloudflare 拿 cf_clearance。cookie 注入到 ctx 后，ctx 自己
+                # 的代理 IP 走投票请求；Cloudflare 看到 cf_clearance 就放行。
+                fs_result = await self._solve_cloudflare_via_flaresolverr(
+                    proxy_url, vote_id)
+                if fs_result:
+                    cf_cookies, _cf_ua = fs_result
+                    if cf_cookies:
+                        try:
+                            await ctx.add_cookies(cf_cookies)
+                            self.log(f"[INFO] [{vote_id}] 已注入 FlareSolverr "
+                                     f"返回的 {len(cf_cookies)} 个 cookie")
+                        except Exception as e:
+                            self.log(f"[WARN] [{vote_id}] 注入 FS cookie 失败: "
+                                     f"{type(e).__name__}: {str(e)[:80]}")
+
             # cookie 模式：把用户粘贴的 cookies 注入到 ctx，page.goto 时
             # 浏览器会带上这些 cookie，服务器看到已验证身份直接放行
             cookie_mode = (self.cfg.captcha_mode or "").lower() == "cookie"
@@ -698,6 +954,22 @@ class Voter:
 
             await page.goto(self.VOTE_PAGE_URL, wait_until="domcontentloaded",
                             timeout=NAVIGATE_TIMEOUT_MS)
+
+            # 等 Cloudflare 5s 盾走完。检测到 challenge 元素就最多等
+            # CLOUDFLARE_WAIT_TIMEOUT_MS（默认 3min），期间不刷新、不放弃。
+            # 没检测到 challenge 就直接放过——大部分时候是 patchright 已经把它过掉了。
+            await self._wait_for_cloudflare_clear(page, vote_id)
+
+            # 补刀注入 captcha 居中脚本：patchright 下 ctx.add_init_script
+            # 有时不生效（实测 .window-show 弹出后 style 只有 display:block,
+            # 没有 init_script 设的 inset/transform）。在 page 上下文里再
+            # evaluate 一次，让 MutationObserver + setInterval 接管。
+            try:
+                await page.evaluate(_make_captcha_init_script(
+                    self.cfg.captcha_offset_x, self.cfg.captcha_offset_y))
+            except Exception as e:
+                self.log(f"[WARN] [{vote_id}] 注入 captcha 居中脚本失败: "
+                         f"{type(e).__name__}: {str(e)[:80]}")
 
             if cookie_mode:
                 # navigate 后 + 等 JS 跑一会儿，看 cookie 是不是被覆盖了
@@ -753,9 +1025,10 @@ class Voter:
                      f"{[f'{n}({v})' for n, v in targets]}")
 
             # ---- first vote via UI: triggers captcha popup if needed ----
-            first_name = targets[0][0]
+            first_name, first_vid = targets[0]
             try:
-                ok_first = await self._first_vote_via_ui(page, vote_id, first_name)
+                ok_first = await self._first_vote_via_ui(
+                    page, vote_id, first_name, first_vid)
             except Exception as e:
                 self.log(f"[WARN] [{vote_id}] 第一票 UI 流程异常: "
                          f"{type(e).__name__}: {str(e)[:80]}")
@@ -856,7 +1129,11 @@ class Voter:
 
     async def _fetch_vote(self, page: Page, vote_id: int,
                           name: str, vid: int) -> bool:
-        """POST /Active2551/Vote via fetch — request literally matches 418.js."""
+        """POST /Active2551/Vote via fetch — request literally matches 418.js.
+
+        成功（status=200 且 body errCode==0，或 body 解不出 JSON 但 status=200）
+        时，若 name 匹配 cfg.target_character_name，则把"已刷票数"+1 并通过
+        on_pk_count 推到 GUI 悬浮窗。"""
         try:
             result = await page.evaluate(
                 """async (vid) => {
@@ -879,16 +1156,29 @@ class Voter:
                     });
                     let text = "";
                     try { text = await r.text(); } catch (e) {}
-                    return { status: r.status, text: text.slice(0, 200) };
+                    return { status: r.status, text: text.slice(0, 400) };
                 }""",
                 vid,
             )
             status = result.get("status") if isinstance(result, dict) else None
             body = (result.get("text") or "") if isinstance(result, dict) else ""
-            ok = status == 200
+            # 解 body 判 errCode；解不出就只看 status
+            err_code = None
+            try:
+                obj = json.loads(body) if body else None
+                if isinstance(obj, dict):
+                    for k in ("errCode", "errcode", "code"):
+                        if k in obj:
+                            err_code = obj[k]
+                            break
+            except Exception:
+                pass
+            ok = (status == 200) and (err_code in (0, None))
             tag = "OK" if ok else "WARN"
             self.log(f"[{tag}] [{vote_id}] fetch 投票 {name}(vid={vid}) "
-                     f"status={status} body={body[:80]}")
+                     f"status={status} errCode={err_code} body={body[:120]}")
+            if ok:
+                self._bump_vote_count_if_target(name)
             return ok
         except Exception as e:
             self.log(f"[WARN] [{vote_id}] fetch 投票 {name} 异常: "
@@ -1059,13 +1349,7 @@ class Voter:
                     ok = True
             except Exception:
                 pass
-            if ok:
-                self.pk_success_count += 1
-                try:
-                    self.on_pk_count(self.pk_success_count)
-                except Exception:
-                    pass
-            else:
+            if not ok:
                 self.log(f"[INFO] [{vote_id}] Pk2 失败 status={status} "
                          f"body={(body or '')[:80]}")
             return ok
@@ -1251,10 +1535,12 @@ class Voter:
             return False
 
     async def _first_vote_via_ui(self, page: Page, vote_id: int,
-                                  target_name: str) -> bool:
-        """The captcha-bearing first-vote flow, parameterized by name.
-        Extracted from the legacy _attempt body — same logic, except the
-        card is located by an explicit name instead of cfg fallback.
+                                  target_name: str,
+                                  target_vid: Optional[int] = None) -> bool:
+        """The captcha-bearing first-vote flow.
+        点 vote-btn 触发 captcha → 解 captcha → captcha SDK 自动调
+        /VerifyCaptcha 升级 uuid → **直接 fetch /Vote 投票**（不等 confirm modal）。
+        如果 target_vid 没传，仍走老的 "等 confirm modal + 点确认投票" 链路。
         """
         try:
             card = page.locator(self.CANDIDATE_CARD_SELECTOR,
@@ -1277,10 +1563,36 @@ class Voter:
                      f"{type(e).__name__}: {str(e)[:120]}")
             return False
 
+        # ---- 点击可靠性兜底：偶尔首次 click 触发不了 (页面没完全 ready /
+        # JS 事件还没绑上)。先用一个短窗口 (8s) 看 captcha/modal 是否出现，
+        # 没出现就再点一次，最多 3 次。3 次都不响应再走 reload 路径。----
+        FAST_CHECK_MS = 8_000
+        QUICK_RECLICK_MAX = 3
+        outcome = None
+        for click_try in range(1, QUICK_RECLICK_MAX + 1):
+            outcome = await self._wait_for_captcha_or_modal(page, FAST_CHECK_MS)
+            if outcome is not None:
+                break
+            if click_try >= QUICK_RECLICK_MAX:
+                break
+            self.log(f"[INFO] [{vote_id}] 点击后 {FAST_CHECK_MS // 1000}s 没动静，"
+                     f"再点一次 vote-btn (第 {click_try + 1}/{QUICK_RECLICK_MAX} 次)")
+            try:
+                card = page.locator(self.CANDIDATE_CARD_SELECTOR,
+                                    has_text=target_name).first
+                await card.scroll_into_view_if_needed()
+                # force=True：兜底防 overlap / out-of-view 类的偶发不可点
+                await card.locator(self.VOTE_BUTTON_SELECTOR).click(
+                    timeout=5_000, force=True)
+            except Exception as e:
+                self.log(f"[WARN] [{vote_id}] 快速重点失败: "
+                         f"{type(e).__name__}: {str(e)[:120]}")
+
         # ---- two-phase wait with stuck-detection recovery ----
-        self.log(f"[INFO] [{vote_id}] 等待 captcha 或确认模态出现 "
-                 f"(每阶段 {STUCK_DETECT_MS // 1000} 秒, 共 2 阶段)")
-        outcome = await self._wait_for_captcha_or_modal(page, STUCK_DETECT_MS)
+        if outcome is None:
+            self.log(f"[INFO] [{vote_id}] 快速点击 {QUICK_RECLICK_MAX} 次都没动静，"
+                     f"开始长等待 (每阶段 {STUCK_DETECT_MS // 1000} 秒)")
+            outcome = await self._wait_for_captcha_or_modal(page, STUCK_DETECT_MS)
         if outcome is None:
             self.log(f"[INFO] [{vote_id}] 第 1 阶段超时，刷新页面重试")
             if not await self._reload_and_reclick_named(page, vote_id, target_name):
@@ -1304,6 +1616,40 @@ class Voter:
                     await self._handle_captcha(page)
                 except NotImplementedError as e:
                     self.log(f"[WARN] [{vote_id}] captcha 处理未实现: {e}")
+                    return False
+                # 网页改版后，验证码通过往往不再弹 "确定投给TA吗？" 模态，
+                # 而是直接由 SDK 调 /VerifyCaptcha 升级 uuid。这种情况下
+                # 等模态会卡 20s 超时。如果调用方传了 target_vid，
+                # 我们就跳过模态等待，直接 fetch /Vote。
+                if target_vid is not None:
+                    self.log(f"[INFO] [{vote_id}] captcha 处理结束，"
+                             f"准备直接 fetch /Vote vid={target_vid}")
+                    # /VerifyCaptcha 升 uuid 慢的话拿到的 cookie 不新鲜 → /Vote 报错
+                    # 用最多 3 次 fetch 重试，每次失败前等一会儿
+                    ok_direct = False
+                    for fetch_try in range(3):
+                        await asyncio.sleep(1.5 if fetch_try == 0 else 1.0)
+                        try:
+                            ok_direct = await self._fetch_vote(
+                                page, vote_id, target_name, target_vid)
+                        except Exception as e:
+                            self.log(f"[WARN] [{vote_id}] 验证后直接 fetch 投票异常 "
+                                     f"(第 {fetch_try + 1}/3): "
+                                     f"{type(e).__name__}: {str(e)[:120]}")
+                            ok_direct = False
+                        if ok_direct:
+                            break
+                        self.log(f"[INFO] [{vote_id}] 直接 fetch 第 {fetch_try + 1}/3 "
+                                 f"次失败，等下一次重试 (uuid 可能还没升级)")
+                    if ok_direct:
+                        self.log(f"[OK] [{vote_id}] 验证通过后直接 fetch 投票成功，"
+                                 f"跳过 '确认投票' 模态")
+                        return True
+                    # 走 direct-fetch 模式时，3 次 fetch 都失败就直接放弃本轮。
+                    # 老链路（再点 vote-btn → 等模态 → 点确认投票）会触发
+                    # 一轮新的 captcha 浪费时间和代理，没必要做这个兜底。
+                    self.log(f"[WARN] [{vote_id}] 直接 fetch 3 次都失败，本轮放弃 "
+                             f"(不再走 '确认模态' 链路)")
                     return False
                 # race: 等 [确认模态 | 成功投票提示]
                 try:
@@ -1437,6 +1783,8 @@ class Voter:
             self.log(f"[OK] [{vote_id}] {text[:120]}")
         except Exception:
             self.log(f"[OK] [{vote_id}] 投票成功")
+        # 点 "确认投票" 路径下，/Vote 是页面 JS 帮我们发的，但成功了同样要算一票
+        self._bump_vote_count_if_target(target_name)
 
         # 后台尝试关掉 "确定"，关不掉也没关系（复活赛 toast 会自动消失）
         async def _dismiss_ok():
@@ -1455,6 +1803,90 @@ class Voter:
         asyncio.create_task(_dismiss_ok())
         return True
 
+    async def _captcha_is_visible(self, page: Page) -> bool:
+        try:
+            return await page.locator(
+                self.CAPTCHA_MODAL_SELECTOR).first.is_visible()
+        except Exception:
+            return False
+
+    async def _captcha_puzzle_src(self, page: Page) -> Optional[str]:
+        """读 #aliyunCaptcha-puzzle 的 src（用来检测 SDK 是否换了新拼图）。"""
+        try:
+            return await page.evaluate(
+                "() => { const p = document.querySelector('#aliyunCaptcha-puzzle'); "
+                "return p ? (p.src || null) : null; }"
+            )
+        except Exception:
+            return None
+
+    async def _force_refresh_captcha(self, page: Page) -> bool:
+        """点 #aliyunCaptcha-btn-refresh 强制换一张新拼图。
+        SDK 拖错时通常会自动 refresh，但偶尔不刷新 / 刷新失败时由我们手动触发。"""
+        try:
+            btn = page.locator('#aliyunCaptcha-btn-refresh').first
+            if await btn.count() > 0 and await btn.is_visible():
+                await btn.click(timeout=1500, force=True)
+                return True
+        except Exception:
+            pass
+        return False
+
+    async def _solve_captcha_with_retry(self, page: Page,
+                                         solve_fn, label: str,
+                                         max_attempts: int = 3) -> bool:
+        """对一次性 solve_fn (= _handle_captcha_auto / _handle_captcha_yydsocr)
+        做 OCR + 拖动 + 校验消失的循环。
+        每次开始先看 captcha 是否已经隐藏（之前一轮飞快通过了）—— 是就直接返回 True。
+        拖完 4s 内 captcha 框消失 = 成功。仍可见就当作拖错，等 1.5s 让 SDK
+        把滑块弹回 + 拉新拼图，再来一次 OCR + 拖动。SDK 没自动换图就主动
+        点 #aliyunCaptcha-btn-refresh 强一张。"""
+        last_src = None
+        for attempt in range(1, max_attempts + 1):
+            # 早退：captcha 已经不在了（可能上一轮通过 / 用户手动关掉）
+            if not await self._captcha_is_visible(page):
+                self.log(f"[OK] {label} captcha 已不可见，视为通过 "
+                         f"(第 {attempt} 次未必动手)")
+                return True
+
+            self.log(f"[INFO] {label} 自动求解第 {attempt}/{max_attempts} 次")
+            # 拖动前记下当前拼图 src，便于后面判断 SDK 是否真的换图
+            cur_src = await self._captcha_puzzle_src(page)
+            if attempt > 1 and cur_src is not None and cur_src == last_src:
+                # SDK 没自动换图 —— 自己点刷新按钮强一张
+                if await self._force_refresh_captcha(page):
+                    self.log(f"[INFO] {label} 拼图未变，已手动点刷新按钮")
+                    await asyncio.sleep(0.8)
+                    cur_src = await self._captcha_puzzle_src(page)
+            last_src = cur_src
+
+            try:
+                await solve_fn(page)
+            except Exception as e:
+                self.log(f"[WARN] {label} 第 {attempt} 次拖动异常: "
+                         f"{type(e).__name__}: {str(e)[:120]}")
+                # 给 SDK 弹回的时间，再次循环开头会先检查 visibility
+                await asyncio.sleep(1.2)
+                continue
+
+            # 拖完 → 等 4s 看 captcha 是否消失（关闭动画 + 服务端确认）
+            try:
+                await page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
+                    state="hidden", timeout=4_000)
+                self.log(f"[OK] {label} 第 {attempt} 次拖动后 captcha 已关闭")
+                return True
+            except Exception:
+                pass
+            # 兜底：is_visible 再确认一次（wait_for 偶尔被 element detach 误判）
+            if not await self._captcha_is_visible(page):
+                self.log(f"[OK] {label} 第 {attempt} 次后 captcha 隐藏 (兜底)")
+                return True
+            # 仍可见 → 拖偏了，等 1.5s 让滑块弹回 + 让 SDK 把新图加载完
+            self.log(f"[WARN] {label} 第 {attempt} 次拖动后 captcha 仍在，"
+                     f"准备重试")
+            await asyncio.sleep(1.5)
+        return False
+
     async def _handle_captcha(self, page: Page):
         """根据 cfg.captcha_mode 分流：
           - "auto"   → jfbym 自动识别 + 自动拖动
@@ -1463,25 +1895,29 @@ class Voter:
                        回落到 manual 让用户应急
           - "manual" → 等用户手动滑（默认）
         所有 auto 路径失败都自动回落到 manual。
+        OCR + 拖动会在 _solve_captcha_with_retry 内重试，拖错时让 SDK
+        换张新拼图再来。
         """
         mode = (self.cfg.captcha_mode or "manual").lower()
         if mode == "auto":
             try:
-                await self._handle_captcha_auto(page)
-                await page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
-                    state="hidden", timeout=10_000)
-                self.log("[OK] jfbym 自动识别通过，继续投票")
-                return
+                ok = await self._solve_captcha_with_retry(
+                    page, self._handle_captcha_auto, "jfbym", max_attempts=3)
+                if ok:
+                    self.log("[OK] jfbym 自动识别通过，继续投票")
+                    return
+                self.log("[WARN] jfbym 3 次仍未通过，回落到手动")
             except Exception as e:
                 self.log(f"[WARN] jfbym 自动识别失败，回落到手动: "
                          f"{type(e).__name__}: {str(e)[:120]}")
         elif mode == "auto2":
             try:
-                await self._handle_captcha_yydsocr(page)
-                await page.locator(self.CAPTCHA_MODAL_SELECTOR).first.wait_for(
-                    state="hidden", timeout=10_000)
-                self.log("[OK] yydsocr 自动识别通过，继续投票")
-                return
+                ok = await self._solve_captcha_with_retry(
+                    page, self._handle_captcha_yydsocr, "yydsocr", max_attempts=3)
+                if ok:
+                    self.log("[OK] yydsocr 自动识别通过，继续投票")
+                    return
+                self.log("[WARN] yydsocr 3 次仍未通过，回落到手动")
             except Exception as e:
                 self.log(f"[WARN] yydsocr 自动识别失败，回落到手动: "
                          f"{type(e).__name__}: {str(e)[:120]}")
@@ -1499,19 +1935,79 @@ class Voter:
         阿里云 FeiLin 的图是完整原图（验证过 bg=300x300 natural=300x300），
         截图法反而会引入白边导致 OCR 失败。滑动距离 ≠ 1:1 的问题在
         _measure_captcha_geometry + 距离换算里解决，不在取图层面处理。"""
+        # ---- A) 居中诊断：dump popup 的 computed style + bbox + 视口大小 ----
+        # 用户多次反馈 "captcha 窗口不居中/不偏移"，这里把真值打出来好定位问题：
+        # 我们注入的 inline !important / <style> 表是不是真的赢了 SDK 自带的 CSS。
+        try:
+            diag = await page.evaluate(
+                r"""() => {
+                    const candidates = [
+                        '#aliyunCaptcha-window-popup',
+                        '.window-show',
+                        '#aliyunCaptcha-mask',
+                    ];
+                    const out = {
+                        vw: window.innerWidth, vh: window.innerHeight,
+                        offX: window.__captchaOffsetX,
+                        offY: window.__captchaOffsetY,
+                        styleTagExists: !!document.getElementById('__captcha_center_style__'),
+                        nodes: [],
+                    };
+                    for (const sel of candidates) {
+                        const el = document.querySelector(sel);
+                        if (!el) {
+                            out.nodes.push({ sel, found: false });
+                            continue;
+                        }
+                        const cs = getComputedStyle(el);
+                        const r = el.getBoundingClientRect();
+                        out.nodes.push({
+                            sel, found: true,
+                            cls: el.className,
+                            displayNone: cs.display === 'none',
+                            // 真正决定显示位置的最终 computed 值
+                            position: cs.position,
+                            top: cs.top, left: cs.left,
+                            right: cs.right, bottom: cs.bottom,
+                            transform: cs.transform,
+                            zIndex: cs.zIndex,
+                            bbox: { x: r.x, y: r.y, w: r.width, h: r.height },
+                        });
+                    }
+                    return out;
+                }"""
+            )
+            self.log(f"[DEBUG] 居中诊断: viewport={diag.get('vw')}x{diag.get('vh')} "
+                     f"offsets=({diag.get('offX')},{diag.get('offY')}) "
+                     f"<style>注入={diag.get('styleTagExists')}")
+            for n in diag.get("nodes", []):
+                if not n.get("found"):
+                    self.log(f"  - {n['sel']}: 未找到")
+                    continue
+                bb = n.get("bbox") or {}
+                self.log(f"  - {n['sel']} (display:none={n.get('displayNone')}) "
+                         f"position={n.get('position')} "
+                         f"top={n.get('top')} left={n.get('left')} "
+                         f"transform={n.get('transform')} "
+                         f"bbox=({bb.get('x'):.0f},{bb.get('y'):.0f}, "
+                         f"{bb.get('w'):.0f}x{bb.get('h'):.0f})")
+        except Exception as e:
+            self.log(f"[WARN] 居中诊断失败: {type(e).__name__}: {str(e)[:80]}")
+
         # dump captcha DOM 调试
         try:
             html_snip = await page.evaluate(
                 r"""() => {
-                    const el = document.querySelector('.window-show');
-                    if (!el) return '<NO .window-show>';
+                    const el = document.querySelector('.window-show')
+                            || document.querySelector('#aliyunCaptcha-window-popup');
+                    if (!el) return '<NO popup>';
                     let s = el.outerHTML;
                     s = s.replace(/(data:image\/[^,]+,)[A-Za-z0-9+\/=]{50,}/g,
                                   '$1<base64 ellided>');
                     return s.slice(0, 6000);
                 }"""
             )
-            self.log(f"[DEBUG] captcha .window-show outerHTML (base64 已折叠):")
+            self.log(f"[DEBUG] captcha popup outerHTML (base64 已折叠):")
             self.log(html_snip)
         except Exception as e:
             self.log(f"[WARN] dump captcha DOM 失败: {type(e).__name__}: {str(e)[:80]}")
@@ -1973,10 +2469,14 @@ class VoteRunner:
     async def _push_offset_to_all(self, x: int, y: int):
         if self._browser is None:
             return
-        # Set globals + trigger immediate redraw via the exposed fixAll.
-        js = (f"window.__captchaOffsetX = {x};"
-              f"window.__captchaOffsetY = {y};"
-              f"if (window.__captchaFixAll) window.__captchaFixAll();")
+        # 优先用新的 setter（同时更新 globals + 重写 <style> 表）；
+        # 没有就回落到只更新全局 + 触发 fixAll（老版兼容）。
+        js = (f"(function(x,y){{"
+              f"  if (window.__captchaSetOffset) {{ window.__captchaSetOffset(x,y); return; }}"
+              f"  window.__captchaOffsetX = x;"
+              f"  window.__captchaOffsetY = y;"
+              f"  if (window.__captchaFixAll) window.__captchaFixAll();"
+              f"}})({x}, {y});")
         for ctx in list(self._browser.contexts):
             for page in list(ctx.pages):
                 try:
@@ -1995,6 +2495,8 @@ class VoteRunner:
             # 强制 headless=False：脚本需要用户手动滑滑块解验证码，
             # 无头模式没有窗口就没法滑。GUI 也不再开放该开关。
             launch_kwargs = dict(headless=False)
+            self.log(f"[INFO] Playwright 引擎: "
+                     f"{'patchright (反检测版)' if _USING_PATCHRIGHT else '原版 playwright'}")
             resolved = resolve_browser_path(self.cfg.browser_path)
             if resolved:
                 launch_kwargs["executable_path"] = resolved
@@ -2286,6 +2788,8 @@ class App(tk.Tk):
         self.var_captcha_mode = tk.StringVar(value=cfg.captcha_mode or "manual")
         # 用户粘贴的 cookie 字符串初值，给 _build() 里的 Text 控件用
         self._initial_user_cookies: str = cfg.user_cookies or ""
+        # FlareSolverr URL（空 = 不启用）
+        self.var_flaresolverr_url = tk.StringVar(value=cfg.flaresolverr_url or "")
         self.var_captcha_x   = tk.IntVar(value=cfg.captcha_offset_x)
         self.var_captcha_y   = tk.IntVar(value=cfg.captcha_offset_y)
         self.var_captcha_hint = tk.StringVar(
@@ -2395,6 +2899,13 @@ class App(tk.Tk):
                         value="cookie").pack(side="left")
         r += 1
 
+        # FlareSolverr URL（过 Cloudflare 5s 盾用，空 = 不启用）
+        ttk.Label(cfg_frame, text="FlareSolverr URL:").grid(
+            row=r, column=0, sticky="w", padx=8, pady=3)
+        ttk.Entry(cfg_frame, textvariable=self.var_flaresolverr_url).grid(
+            row=r, column=1, sticky="we", padx=8)
+        r += 1
+
         # Cookie 文本框（cookie 模式专用 —— 在浏览器 console 跑 document.cookie 后粘贴）
         ttk.Label(cfg_frame, text="Cookie 字符串:").grid(
             row=r, column=0, sticky="nw", padx=8, pady=3)
@@ -2490,6 +3001,7 @@ class App(tk.Tk):
             captcha_mode=(self.var_captcha_mode.get() or "manual"),
             yydsocr_token=self._yydsocr_token_in_use,
             user_cookies=self.txt_cookies.get("1.0", "end").strip(),
+            flaresolverr_url=self.var_flaresolverr_url.get().strip(),
             flow_mode=(self.var_flow_mode.get() or "full"),
             browser_engine="chromium",  # field retained for config-yaml compat
             browser_path=self.var_browser.get(),

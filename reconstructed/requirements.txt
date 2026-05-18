@@ -2,6 +2,7 @@
 # Python 3.13 required (the original ships python313.dll).
 playwright==1.59.0
 playwright-stealth==2.0.3
+patchright           # Playwright 的反检测补丁版，用来过 Cloudflare 5s 盾
 httpx==0.28.1     # version inferred — pin if a more specific dist-info is found
 attrs==25.4.0
 click==8.3.1

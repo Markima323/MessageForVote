@@ -6,11 +6,12 @@ target_character_names:
 - 卡芙卡
 - 那刻夏
 target_button_index: 10
-concurrency: 1
+concurrency: 6
 total_votes: 20000
 debug_mode: false
 flow_mode: quick
-user_cookies: Battle2vPsvote2026_uuid=d7b9e33927a644cf874fb2f9b8f3b64a;
+user_cookies: ''
+flaresolverr_url: ''
 captcha_mode: auto2
 yydsocr_token: ''
 browser_engine: chromium
@@ -18,6 +19,6 @@ browser_path: C:\Program Files\Google\Chrome\Application\chrome.exe
 headless: false
 last_resolved_name: 砂金
 last_resolved_index: 0
-last_resolved_at: '2026-05-18 01:15:03'
-captcha_offset_x: -362
-captcha_offset_y: -221
+last_resolved_at: '2026-05-18 17:34:54'
+captcha_offset_x: -352
+captcha_offset_y: -178

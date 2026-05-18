@@ -96,6 +96,13 @@ if errorlevel 1 (
 )
 
 echo.
+echo [INFO] 安装 patchright (反检测版) Chromium ^(已存在则跳过^) ...
+"%PY%" -m patchright install chromium
+if errorlevel 1 (
+    echo [WARN] patchright Chromium 安装失败 ^(脚本会回退到原版 Playwright^)
+)
+
+echo.
 echo ================================================
 echo  [DONE] 安装完成。现在可以双击 start.bat 启动。
 echo ================================================
