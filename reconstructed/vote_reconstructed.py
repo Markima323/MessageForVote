@@ -38,6 +38,7 @@ import os
 import sys
 import json
 import asyncio
+import random
 import threading
 import time
 import traceback
@@ -1972,17 +1973,54 @@ class Voter:
         return ocr_distance
 
     async def _smooth_drag_segment(self, page: Page, from_x: float, to_x: float,
-                                    y: float, steps: int = 15):
-        """从 (from_x, y) 平滑拖到 (to_x, y)，ease-out + 微抖动模拟真人轨迹。
-        要求当前已经 mouse.down，期间不松鼠标。"""
+                                    y: float,
+                                    total_ms: float = 250.0,
+                                    curve: str = "ease_out_quart",
+                                    jitter_amp: float = 1.5,
+                                    micro_pause_count: int = 0):
+        """从 (from_x, y) 平滑拖到 (to_x, y)，按速度曲线生成轨迹。
+
+        curve:
+          'ease_out_quart' — x(t) = D·(1-(1-t)⁴)，先快后慢，t=0.5 时已走 94%
+          'ease_out_cubic' — x(t) = D·(1-(1-t)³)，温和的先快后慢，t=0.5 时走 87.5%
+          'linear'         — 等速（不推荐，规则节奏易被识别）
+
+        jitter_amp: y 方向低通随机游走的振幅（px），替代旧版 ±1 锯齿模式
+        micro_pause_count: 拖动后段插入 N 次 50-150ms 的犹豫式微停顿
+
+        要求 mouse 已 down，过程中不松鼠标。
+        """
         delta = to_x - from_x
+        if abs(delta) < 0.5:
+            return
+        # ~3px 一个采样点，最少 18 步
+        steps = max(18, int(abs(delta) / 3))
+        step_ms = total_ms / steps
+        # 后 40%-90% 区间内放微停顿（"快到目标了，对一下"）
+        pause_at = set()
+        for _ in range(micro_pause_count):
+            pause_at.add(random.randint(int(steps * 0.4),
+                                          max(int(steps * 0.4) + 1,
+                                              int(steps * 0.9))))
+        # y 方向：低通随机游走（0.7 衰减 + 0.3 新噪声）→ 不规则
+        y_drift = 0.0
         for i in range(1, steps + 1):
             t = i / steps
-            progress = 1 - (1 - t) ** 2
+            if curve == "ease_out_quart":
+                progress = 1.0 - (1.0 - t) ** 4
+            elif curve == "ease_out_cubic":
+                progress = 1.0 - (1.0 - t) ** 3
+            else:
+                progress = t
             cur_x = from_x + delta * progress
-            cur_y = y + (1 if i % 2 == 0 else -1)
+            y_drift = 0.7 * y_drift + 0.3 * random.uniform(-jitter_amp, jitter_amp)
+            cur_y = y + y_drift
             await page.mouse.move(cur_x, cur_y, steps=1)
-            await asyncio.sleep(0.012)
+            # 时间也加 ±15% 抖动，避免严格匀速节奏
+            sleep_s = step_ms * random.uniform(0.85, 1.15) / 1000.0
+            await asyncio.sleep(sleep_s)
+            if i in pause_at:
+                await asyncio.sleep(random.uniform(0.06, 0.15))
 
     async def _drag_captcha_slider(self, page: Page, distance: int):
         """按 OCR 给的"拼图应该走多远"（distance）拖动滑块。
@@ -2073,8 +2111,10 @@ class Voter:
         # ---- 2) 标定段：拖 CALIBRATION_DISTANCE px 测 ratio ----
         self.log(f"[INFO] 标定: 先拖 {CALIBRATION_DISTANCE}px 测阻尼")
         await self._smooth_drag_segment(
-            page, start_x, start_x + CALIBRATION_DISTANCE, start_y, steps=12)
-        await asyncio.sleep(0.25)
+            page, start_x, start_x + CALIBRATION_DISTANCE, start_y,
+            total_ms=random.randint(320, 420),
+            curve="ease_out_cubic", jitter_amp=1.2)
+        await asyncio.sleep(random.uniform(0.20, 0.30))
         cal = await page.evaluate(r"""() => {
             const p = document.querySelector('#aliyunCaptcha-puzzle');
             return p ? p.getBoundingClientRect().x : null;
@@ -2091,8 +2131,10 @@ class Voter:
         # ---- 3) 拖回原位 ----
         self.log(f"[INFO] 拖回原位，准备正式拖动")
         await self._smooth_drag_segment(
-            page, start_x + CALIBRATION_DISTANCE, start_x, start_y, steps=12)
-        await asyncio.sleep(0.2)
+            page, start_x + CALIBRATION_DISTANCE, start_x, start_y,
+            total_ms=random.randint(260, 340),
+            curve="ease_out_cubic", jitter_amp=1.2)
+        await asyncio.sleep(random.uniform(0.18, 0.28))
 
         # ---- 4) 用线性 ratio 模型解二次方程算正式拖动距离 ----
         # 模型: ratio(d) = a + b*d ，拼图位移 = d * ratio(d) = a*d + b*d²
@@ -2129,9 +2171,27 @@ class Voter:
                  f"= {effective_target:.1f} → 鼠标拖 {real_drag}px "
                  f"(模型预测拼图到 {predicted_puzzle:.1f}px)")
 
+        # ---- 正式拖动：长一点 + 强 ease-out + 微停顿 + overshoot 回拨 ----
+        total_ms_real = random.randint(900, 1400)
+        micro_pauses = random.choice([1, 1, 2])
+        self.log(f"[INFO] 正式拖时长 {total_ms_real}ms, 微停顿 {micro_pauses} 次, "
+                 f"曲线 ease_out_quart")
         await self._smooth_drag_segment(
-            page, start_x, start_x + real_drag, start_y, steps=25)
-        await asyncio.sleep(0.2)
+            page, start_x, start_x + real_drag, start_y,
+            total_ms=total_ms_real,
+            curve="ease_out_quart",
+            jitter_amp=1.8,
+            micro_pause_count=micro_pauses)
+        # overshoot 3-6 px → 停顿 → 回拨 → 停顿（模仿"略冲过后微调"）
+        overshoot = random.randint(3, 6)
+        await page.mouse.move(start_x + real_drag + overshoot,
+                              start_y + random.uniform(-1.0, 1.0),
+                              steps=2)
+        await asyncio.sleep(random.uniform(0.08, 0.16))
+        await page.mouse.move(start_x + real_drag,
+                              start_y + random.uniform(-1.0, 1.0),
+                              steps=3)
+        await asyncio.sleep(random.uniform(0.12, 0.22))
         await page.mouse.up()
 
         # ---- 5) 最终量一次拼图位置（验证效果） ----
