@@ -273,11 +273,11 @@ CONFIRM_MODAL_TIMEOUT_MS  = 20_000
 # the same as CONFIRM_MODAL_TIMEOUT_MS so a stuck attempt advances.
 SUCCESS_MODAL_TIMEOUT_MS  = CONFIRM_MODAL_TIMEOUT_MS
 NAVIGATE_TIMEOUT_MS       = 120_000  # bumped to 2 min — slow paid proxies otherwise crash here
-# Cloudflare 5s 盾验证最多等这么久。真能过的代理 patchright 一般 5-15s 搞定，
-# 超过 30s 还在 '请稍候…' / 'Just a moment...' 基本就是这个 IP 被 CF 拉黑了 /
-# 整批 IP 段被标记了，继续干等也过不了，不如早点 bail 让代理黑名单生效、
-# 拿下一批 IP。要彻底解决就必须挂 FlareSolverr（GUI 里填 URL）。
-CLOUDFLARE_WAIT_TIMEOUT_MS = 30_000    # 30s — bail fast on banned proxies
+# Cloudflare 5s 盾验证最多等这么久。代理网速慢的话 patchright 解 JS 挑战 +
+# 渲染真实页面拢共要 30-60s 很常见。超过 90s 还在 '请稍候…' / 'Just a moment...'
+# 基本就是这个 IP 被 CF 拉黑了 / 整批 IP 段被标记了，继续干等也过不了，不如早点
+# bail 让代理黑名单生效、拿下一批 IP。要彻底解决就必须挂 FlareSolverr（GUI 里填 URL）。
+CLOUDFLARE_WAIT_TIMEOUT_MS = 60_000    # 60s — 给慢代理留余量，过不了的直接换
 # MAX_RETRIES disabled per user request — slow page loads were triggering
 # retries during human captcha-solving, refreshing the page and losing
 # the user's in-progress slider drag. Set back to 3 to re-enable.
@@ -2024,22 +2024,20 @@ class Voter:
 
     async def _drag_captcha_slider(self, page: Page, distance: int):
         """按 OCR 给的"拼图应该走多远"（distance）拖动滑块。
-        阻尼系数动态变化（实测 0.78-0.96 都有），所以用三段式策略：
-          ① 拖 50px 标定 → 测此时拼图实际移动量 → 算实测 ratio
-          ② 拖回原位（清零进度，避免阿里云检测半路停顿）
-          ③ 用实测 ratio 计算正式拖动距离，一气呵成拖到位
+        两段式策略（替代旧三段标定式 —— 后者行为像机器在试探阻尼，
+        阿里云行为引擎容易识别）：
+          ① 用默认 ratio 模型直接估算鼠标拖动距离，一气拖到位
+          ② 量拼图实际位置，误差大于阈值就做一次小幅微调
         全程在一次 mouse.down/mouse.up 内完成。"""
-        # 阿里云阻尼是非线性的：ratio 跟距离近似线性：ratio(d) = a + b*d
-        # 实测（5 次拟合）：a ≈ 0.08, b ≈ 0.0035
-        # 拼图位移 = d × ratio(d) = a*d + b*d² —— 是个二次函数
-        # 要让拼图走 target，解二次方程：b*d² + a*d - target = 0
-        # 标定段测出 (CAL_DIST, ratio_cal) → 修正 a：a = ratio_cal - b*CAL_DIST
+        # 阿里云阻尼非线性：ratio 近似线性 ratio(d) = a + b*d
+        # 拼图位移 = d × ratio(d) = a*d + b*d²，解二次方程取正根
         import math as _math
-        CALIBRATION_DISTANCE = 100   # 标定段距离
-        MIN_RATIO_FOR_TRUST = 0.3    # 标定 ratio 低于此 → 用默认 a
-        DEFAULT_RATIO_A = 0.08       # 经验截距
-        DEFAULT_RATIO_B = 0.0035     # 经验斜率（认为基本不变）
-        FALLBACK_RATIO = 0.88        # 完全无法测量时的常数 ratio
+        DEFAULT_RATIO_A = 0.08             # 经验截距
+        DEFAULT_RATIO_B = 0.0035           # 经验斜率
+        FALLBACK_RATIO = 0.88              # 二次解失败时回退用
+        CORRECTION_THRESHOLD_PX = 3        # 拼图偏差小于此 → 跳过微调
+        CORRECTION_MAX_PX = 35             # 单次微调鼠标位移上限
+        CORRECTION_PUZZLE_RATIO = 0.85     # 微调段近似 ratio（puzzle_err → mouse_dx）
 
         # ---- 1) 找拖手 ----
         DRAG_SELECTORS = [
@@ -2103,78 +2101,42 @@ class Voter:
         max_drag_distance = (init["trackW"] - init["sliderW"]) if (
             init["trackW"] and init["sliderW"]) else 260
 
-        start_x = box["x"] + box["width"] / 2
-        start_y = box["y"] + box["height"] / 2
-        await page.mouse.move(start_x, start_y)
-        await page.mouse.down()
-
-        # ---- 2) 标定段：拖 CALIBRATION_DISTANCE px 测 ratio ----
-        self.log(f"[INFO] 标定: 先拖 {CALIBRATION_DISTANCE}px 测阻尼")
-        await self._smooth_drag_segment(
-            page, start_x, start_x + CALIBRATION_DISTANCE, start_y,
-            total_ms=random.randint(320, 420),
-            curve="ease_out_cubic", jitter_amp=1.2)
-        await asyncio.sleep(random.uniform(0.20, 0.30))
-        cal = await page.evaluate(r"""() => {
-            const p = document.querySelector('#aliyunCaptcha-puzzle');
-            return p ? p.getBoundingClientRect().x : null;
-        }""")
-        if cal is not None and init["puzzleX"] is not None:
-            puzzle_moved_cal = cal - init["puzzleX"]
-            measured_ratio = puzzle_moved_cal / CALIBRATION_DISTANCE
-        else:
-            puzzle_moved_cal = 0.0
-            measured_ratio = -1.0  # 信号：测量失败
-        self.log(f"[INFO] 标定结果: 鼠标移 {CALIBRATION_DISTANCE}px → "
-                 f"拼图移 {puzzle_moved_cal:.1f}px, ratio={measured_ratio:.4f}")
-
-        # ---- 3) 拖回原位 ----
-        self.log(f"[INFO] 拖回原位，准备正式拖动")
-        await self._smooth_drag_segment(
-            page, start_x + CALIBRATION_DISTANCE, start_x, start_y,
-            total_ms=random.randint(260, 340),
-            curve="ease_out_cubic", jitter_amp=1.2)
-        await asyncio.sleep(random.uniform(0.18, 0.28))
-
-        # ---- 4) 用线性 ratio 模型解二次方程算正式拖动距离 ----
-        # 模型: ratio(d) = a + b*d ，拼图位移 = d * ratio(d) = a*d + b*d²
-        # 要让拼图位移 = effective_target，解 b*d² + a*d - target = 0
+        # ---- 2) 默认模型算鼠标拖动距离 ----
+        # 模型: puzzle_moved = a*d + b*d²，要让其 = effective_target，
+        # 解 b*d² + a*d - target = 0 取正根
         effective_target = distance - init_offset
+        a = DEFAULT_RATIO_A
         b = DEFAULT_RATIO_B
-        if measured_ratio >= MIN_RATIO_FOR_TRUST:
-            # 标定可信：用 b（斜率）固定，从标定点反推 a（截距）
-            a = measured_ratio - b * CALIBRATION_DISTANCE
-            model_src = f"标定 (ratio_cal={measured_ratio:.4f} @ {CALIBRATION_DISTANCE}px)"
-        else:
-            # 标定不可信：用默认经验值
-            a = DEFAULT_RATIO_A
-            model_src = "默认经验值"
-        self.log(f"[INFO] 线性 ratio 模型: ratio(d) = {a:.4f} + {b} × d  ({model_src})")
-
         disc = a * a + 4 * b * effective_target
         if b > 0 and disc > 0:
             real_drag = int(round((-a + _math.sqrt(disc)) / (2 * b)))
         else:
             real_drag = int(round(effective_target / FALLBACK_RATIO))
             self.log(f"[WARN] 二次解失败，回退 fallback_ratio={FALLBACK_RATIO}")
-
-        # 边界约束：不超过滑轨可拖范围
         if real_drag > max_drag_distance:
             self.log(f"[WARN] 算出鼠标拖动 {real_drag}px 超过轨道上限 "
                      f"{int(max_drag_distance)}px，按上限拖")
             real_drag = int(max_drag_distance)
         elif real_drag < 0:
             real_drag = 0
-        # 预测拼图最终位置（验证模型）
         predicted_puzzle = real_drag * (a + b * real_drag)
-        self.log(f"[INFO] 正式拖动: OCR={distance}px - init_offset={init_offset:.1f} "
-                 f"= {effective_target:.1f} → 鼠标拖 {real_drag}px "
-                 f"(模型预测拼图到 {predicted_puzzle:.1f}px)")
+        self.log(f"[INFO] 默认模型: ratio(d) = {a} + {b} × d, "
+                 f"OCR={distance}px - init_offset={init_offset:.1f} "
+                 f"= effective {effective_target:.1f}px → 鼠标拖 {real_drag}px "
+                 f"(预测拼图 {predicted_puzzle:.1f}px)")
 
-        # ---- 正式拖动：长一点 + 强 ease-out + 微停顿 + overshoot 回拨 ----
+        # ---- 3) 抓握 + 主拖（人类速度曲线） ----
+        # 抓握点不取拖手正中心，加 ±2px 偏移；按下前后留犹豫
+        start_x = box["x"] + box["width"] / 2 + random.uniform(-2.0, 2.0)
+        start_y = box["y"] + box["height"] / 2 + random.uniform(-2.0, 2.0)
+        await page.mouse.move(start_x, start_y)
+        await asyncio.sleep(random.uniform(0.06, 0.14))  # 抓握前犹豫
+        await page.mouse.down()
+        await asyncio.sleep(random.uniform(0.04, 0.10))  # 按下后启动延迟
+
         total_ms_real = random.randint(900, 1400)
         micro_pauses = random.choice([1, 1, 2])
-        self.log(f"[INFO] 正式拖时长 {total_ms_real}ms, 微停顿 {micro_pauses} 次, "
+        self.log(f"[INFO] 主拖时长 {total_ms_real}ms, 微停顿 {micro_pauses} 次, "
                  f"曲线 ease_out_quart")
         await self._smooth_drag_segment(
             page, start_x, start_x + real_drag, start_y,
@@ -2182,19 +2144,49 @@ class Voter:
             curve="ease_out_quart",
             jitter_amp=1.8,
             micro_pause_count=micro_pauses)
-        # overshoot 3-6 px → 停顿 → 回拨 → 停顿（模仿"略冲过后微调"）
-        overshoot = random.randint(3, 6)
-        await page.mouse.move(start_x + real_drag + overshoot,
-                              start_y + random.uniform(-1.0, 1.0),
-                              steps=2)
-        await asyncio.sleep(random.uniform(0.08, 0.16))
-        await page.mouse.move(start_x + real_drag,
-                              start_y + random.uniform(-1.0, 1.0),
-                              steps=3)
+
+        # ---- 4) 测量拼图，按需微调 ----
+        await asyncio.sleep(random.uniform(0.18, 0.32))  # "看一眼"再修
+        cur = await page.evaluate(r"""() => {
+            const p = document.querySelector('#aliyunCaptcha-puzzle');
+            return p ? p.getBoundingClientRect().x : null;
+        }""")
+        cur_mouse_x = start_x + real_drag
+        if cur is not None and init["puzzleX"] is not None:
+            puzzle_moved = cur - init["puzzleX"]
+            error = effective_target - puzzle_moved
+            self.log(f"[INFO] 主拖结果: 拼图移 {puzzle_moved:.1f}px, "
+                     f"目标 {effective_target:.1f}px, 误差 {error:+.1f}px")
+            if abs(error) > CORRECTION_THRESHOLD_PX:
+                correction = int(round(error / CORRECTION_PUZZLE_RATIO))
+                if correction > CORRECTION_MAX_PX:
+                    correction = CORRECTION_MAX_PX
+                elif correction < -CORRECTION_MAX_PX:
+                    correction = -CORRECTION_MAX_PX
+                target_x = cur_mouse_x + correction
+                # 边界约束
+                if target_x > start_x + max_drag_distance:
+                    target_x = start_x + max_drag_distance
+                elif target_x < start_x:
+                    target_x = start_x
+                self.log(f"[INFO] 微调鼠标 {correction:+d}px "
+                         f"(对应拼图修正 ≈ {error:+.1f}px)")
+                await self._smooth_drag_segment(
+                    page, cur_mouse_x, target_x, start_y,
+                    total_ms=random.randint(180, 280),
+                    curve="ease_out_cubic",
+                    jitter_amp=0.8)
+                cur_mouse_x = target_x
+            else:
+                self.log(f"[INFO] 误差在 {CORRECTION_THRESHOLD_PX}px 内，跳过微调")
+        else:
+            self.log("[WARN] 无法测拼图位置，跳过微调")
+
+        # ---- 5) 松手 ----
         await asyncio.sleep(random.uniform(0.12, 0.22))
         await page.mouse.up()
 
-        # ---- 5) 最终量一次拼图位置（验证效果） ----
+        # ---- 6) 最终量一次拼图位置（验证效果） ----
         await asyncio.sleep(0.25)
         final = await page.evaluate(r"""() => {
             const p = document.querySelector('#aliyunCaptcha-puzzle');

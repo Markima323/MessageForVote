@@ -4,9 +4,9 @@ target_character_name: 砂金
 target_character_names:
 - 砂金
 target_button_index: 10
-concurrency: 2
+concurrency: 6
 total_votes: 20000
-debug_mode: true
+debug_mode: false
 flow_mode: quick
 user_cookies: ''
 flaresolverr_url: ''
@@ -16,7 +16,7 @@ browser_engine: chromium
 browser_path: C:\Program Files\Google\Chrome\Application\chrome.exe
 headless: false
 last_resolved_name: 砂金
-last_resolved_index: 0
-last_resolved_at: '2026-05-18 20:25:09'
+last_resolved_index: 1
+last_resolved_at: '2026-05-19 03:34:39'
 captcha_offset_x: -180
 captcha_offset_y: -112
