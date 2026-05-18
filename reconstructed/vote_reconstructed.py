@@ -272,9 +272,11 @@ CONFIRM_MODAL_TIMEOUT_MS  = 20_000
 # the same as CONFIRM_MODAL_TIMEOUT_MS so a stuck attempt advances.
 SUCCESS_MODAL_TIMEOUT_MS  = CONFIRM_MODAL_TIMEOUT_MS
 NAVIGATE_TIMEOUT_MS       = 120_000  # bumped to 2 min — slow paid proxies otherwise crash here
-# Cloudflare 5s 盾验证有时会卡很久（指纹检测、JS 挑战），最多等这么久才放弃。
-# 检测到 challenge 元素就持续轮询，没检测到就直接通过。
-CLOUDFLARE_WAIT_TIMEOUT_MS = 180_000   # 3 minutes
+# Cloudflare 5s 盾验证最多等这么久。真能过的代理 patchright 一般 5-15s 搞定，
+# 超过 30s 还在 '请稍候…' / 'Just a moment...' 基本就是这个 IP 被 CF 拉黑了 /
+# 整批 IP 段被标记了，继续干等也过不了，不如早点 bail 让代理黑名单生效、
+# 拿下一批 IP。要彻底解决就必须挂 FlareSolverr（GUI 里填 URL）。
+CLOUDFLARE_WAIT_TIMEOUT_MS = 30_000    # 30s — bail fast on banned proxies
 # MAX_RETRIES disabled per user request — slow page loads were triggering
 # retries during human captcha-solving, refreshing the page and losing
 # the user's in-progress slider drag. Set back to 3 to re-enable.
@@ -332,148 +334,27 @@ def _tile_for_slot(slot: int, screen_w: int, screen_h: int,
 
 
 def _make_captcha_init_script(offset_x: int, offset_y: int) -> str:
-    """三层组合方案把验证码弹窗钉到 viewport 中心 + (offset_x, offset_y)：
+    """No-op：放弃强行重定位验证码弹窗。
 
-    1. 注入 `<style id="__captcha_center_style__">`，里面用 **ID 选择器**
-       `#aliyunCaptcha-window-popup` / `#aliyunCaptcha-mask` —— 实测 DOM
-       证明 Aliyun 飞邻 SDK 的真实元素是 ID 命名，class 是 `window-show /
-       window-hidden`、`mask-show / mask-hidden`。ID 选择器 specificity
-       (0,1,0,0) 比 class (0,0,1,0) 高，配合 `!important` 能压住 SDK 自带的
-       同名 ID 规则。
-    2. 同时直接在元素上写 inline `style.setProperty(..., 'important')`：
-       inline + !important 在 CSS 级联里是最强一档（用户 stylesheet 之外
-       无人可压），是终极兜底。
-    3. MutationObserver + 500ms 定时器，SDK 改写 style/class 后立刻覆盖回来。
+    之前用 inline `setProperty(..., 'important')` + `<style>` ID 选择器双保险
+    去把 `#aliyunCaptcha-window-popup` 钉到 viewport 中心 + offset。bug 在
+    `setProperty('inset', 'auto', 'important')` —— `inset` 是 shorthand，
+    它在 left/top 之后执行 → CSSOM 把 top/right/bottom/left 全部 reset 成 auto，
+    最终 inline style 里只剩 `position:fixed; inset:auto; transform:translate(-50%, -50%)`
+    没 top/left，popup 渲在 viewport 左上角 → 拖动也对不上 → 验证失败。
 
-    Python 端调 `window.__captchaSetOffset(x, y)` 即时更新位置；
-    `window.__captchaFixAll()` 兼容老调用点。"""
+    用户反馈"位置不用考虑了，回到 SDK 默认中心就行"，所以这里直接退到无操作。
+    只保留 `window.__captchaOffsetX/Y` 和 `__captchaSetOffset` / `__captchaFixAll`
+    占位，避免 GUI 的实时偏移推送 / 调用点报 undefined。"""
     return r"""
 (() => {
     window.__captchaOffsetX = %d;
     window.__captchaOffsetY = %d;
-    const STYLE_ID = '__captcha_center_style__';
-
-    function buildCss() {
-        const x = window.__captchaOffsetX | 0;
-        const y = window.__captchaOffsetY | 0;
-        // 用 ID 选择器，specificity 高于 SDK 同名 ID（同特异性后写胜出）
-        return `
-#aliyunCaptcha-window-popup,
-.window-show {
-    position: fixed !important;
-    left: calc(50%% + ${x}px) !important;
-    top:  calc(50%% + ${y}px) !important;
-    right: auto !important;
-    bottom: auto !important;
-    inset: auto !important;
-    transform: translate(-50%%, -50%%) !important;
-    margin: 0 !important;
-    z-index: 2147483646 !important;
-}
-#aliyunCaptcha-mask,
-.mask-show {
-    position: fixed !important;
-    left: 0 !important;
-    top: 0 !important;
-    right: auto !important;
-    bottom: auto !important;
-    inset: 0 0 auto auto !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    z-index: 2147483645 !important;
-}
-.custom-alert-box {
-    position: fixed !important;
-    left: calc(50%% + ${x}px) !important;
-    top:  calc(50%% + ${y}px) !important;
-    right: auto !important;
-    bottom: auto !important;
-    transform: translate(-50%%, -50%%) !important;
-    margin: 0 !important;
-    z-index: 2147483646 !important;
-}
-`;
-    }
-
-    function ensureStyle() {
-        let head = document.head || document.documentElement;
-        if (!head) return null;
-        let el = document.getElementById(STYLE_ID);
-        if (!el) {
-            el = document.createElement('style');
-            el.id = STYLE_ID;
-            el.type = 'text/css';
-            head.appendChild(el);
-        } else if (el.parentNode !== head) {
-            head.appendChild(el);
-        }
-        return el;
-    }
-
-    function setCenterInline(el) {
-        if (!el) return;
-        const s = el.style;
-        const x = window.__captchaOffsetX | 0;
-        const y = window.__captchaOffsetY | 0;
-        s.setProperty('position', 'fixed', 'important');
-        s.setProperty('left', `calc(50%% + ${x}px)`, 'important');
-        s.setProperty('top',  `calc(50%% + ${y}px)`, 'important');
-        s.setProperty('right', 'auto', 'important');
-        s.setProperty('bottom', 'auto', 'important');
-        s.setProperty('inset', 'auto', 'important');
-        s.setProperty('transform', 'translate(-50%%, -50%%)', 'important');
-        s.setProperty('margin', '0', 'important');
-        s.setProperty('z-index', '2147483646', 'important');
-    }
-    function setMaskInline(el) {
-        if (!el) return;
-        const s = el.style;
-        s.setProperty('position', 'fixed', 'important');
-        s.setProperty('left', '0', 'important');
-        s.setProperty('top', '0', 'important');
-        s.setProperty('right', 'auto', 'important');
-        s.setProperty('bottom', 'auto', 'important');
-        s.setProperty('inset', '0 0 auto auto', 'important');
-        s.setProperty('width', '100vw', 'important');
-        s.setProperty('height', '100vh', 'important');
-        s.setProperty('z-index', '2147483645', 'important');
-    }
-
-    function applyAll() {
-        // 1) 样式表层
-        const el = ensureStyle();
-        if (el) {
-            const css = buildCss();
-            if (el.textContent !== css) el.textContent = css;
-            const head = document.head;
-            if (head && el.parentNode === head && head.lastElementChild !== el) {
-                head.appendChild(el);
-            }
-        }
-        // 2) inline 终极兜底（用 ID 直接抓到 SDK 真实元素）
-        document.querySelectorAll(
-            '#aliyunCaptcha-window-popup, .window-show, .custom-alert-box'
-        ).forEach(setCenterInline);
-        document.querySelectorAll(
-            '#aliyunCaptcha-mask, .mask-show'
-        ).forEach(setMaskInline);
-    }
-
     window.__captchaSetOffset = function (x, y) {
         window.__captchaOffsetX = x | 0;
         window.__captchaOffsetY = y | 0;
-        applyAll();
     };
-    window.__captchaFixAll = applyAll;
-
-    applyAll();
-    try {
-        new MutationObserver(applyAll).observe(document.documentElement, {
-            childList: true, subtree: true,
-            attributes: true, attributeFilter: ['style', 'class'],
-        });
-    } catch (e) {}
-    setInterval(applyAll, 300);
+    window.__captchaFixAll = function () {};
 })();
 """ % (offset_x, offset_y)
 
@@ -712,60 +593,57 @@ class Voter:
 
     async def _wait_for_cloudflare_clear(self, page: Page,
                                           vote_id: int) -> None:
-        """等 Cloudflare 5s 盾走完。
-        判断标准：
-          - 页面 title 是 'Just a moment...' / '请稍候...'
-          - 存在 #challenge-form / #cf-spinner / .cf-im-under-attack
-          - 存在 iframe 指向 challenges.cloudflare.com
-        命中任何一条就说明 Cloudflare 还在验证，最多等 CLOUDFLARE_WAIT_TIMEOUT_MS
-        让它自己走完（patchright 自带反检测，多数 1-15s 通过）。
-        期间不刷新、不报超时——用户多次反馈这里 'cloudflare 还在转，脚本就刷新了'。"""
+        """等 Cloudflare 5s 盾走完 + 真实页面渲染好。
+
+        进入条件：title 严格是 'Just a moment...' / 'Attention Required' /
+          '请稍候'，**且** 正常页核心元素 .character-card 还看不到。
+        退出条件：**.character-card 出现**（不只是看 title 不变了）。
+          原因：CF 过了以后会立刻 reload/redirect 到真页面，这段过渡里
+          title 已经是新页标题，但 DOM 还是空的，黑屏——之前提早退出，
+          后面 scroll_into_view_if_needed 卡死就是这里来的。
+        最多等 CLOUDFLARE_WAIT_TIMEOUT_MS，期间不刷新、不报超时。"""
         loop = asyncio.get_event_loop()
         deadline = loop.time() + CLOUDFLARE_WAIT_TIMEOUT_MS / 1000
-        check_js = r"""() => {
-            const t = (document.title || '').toLowerCase();
-            if (t.includes('just a moment') || t.includes('请稍候') ||
-                t.includes('attention required')) return true;
-            if (document.querySelector('#challenge-form, #cf-spinner, '
-                + '.cf-im-under-attack, .cf-challenge-running, '
-                + '.cf-browser-verification, #cf-please-wait')) return true;
-            const iframes = document.querySelectorAll('iframe');
-            for (const f of iframes) {
-                const src = (f.src || '');
-                if (src.includes('challenges.cloudflare.com')) return true;
-            }
-            return false;
+        entry_js = r"""() => {
+            if (document.querySelector('.character-card')) return false;
+            const t = (document.title || '').toLowerCase().trim();
+            return (t === 'just a moment...' || t === 'just a moment…' ||
+                    t === '请稍候...' || t === '请稍候…' ||
+                    t.startsWith('attention required'));
         }"""
+        ready_js = "() => !!document.querySelector('.character-card')"
         try:
-            in_challenge = await page.evaluate(check_js)
+            in_challenge = await page.evaluate(entry_js)
         except Exception:
             return
         if not in_challenge:
             return
-        self.log(f"[INFO] [{vote_id}] 检测到 Cloudflare 验证页，等它走完 "
-                 f"(最多 {CLOUDFLARE_WAIT_TIMEOUT_MS // 1000}s，期间不刷新)")
-        last_log = loop.time()
+        start = loop.time()
+        self.log(f"[INFO] [{vote_id}] 检测到 Cloudflare 验证页 (title='Just a moment...')，"
+                 f"等真实页面渲染好 (最多 {CLOUDFLARE_WAIT_TIMEOUT_MS // 1000}s)")
+        last_log = start
         while loop.time() < deadline:
             await asyncio.sleep(2.0)
             try:
-                still = await page.evaluate(check_js)
+                ready = await page.evaluate(ready_js)
             except Exception:
-                still = False
-            if not still:
-                elapsed = int(loop.time() - (deadline - CLOUDFLARE_WAIT_TIMEOUT_MS / 1000))
-                self.log(f"[OK] [{vote_id}] Cloudflare 通过 (用了 {elapsed}s)")
-                # 通过后再多等 1s 让目标页 JS 跑起来
-                await asyncio.sleep(1.0)
+                ready = False
+            if ready:
+                elapsed = int(loop.time() - start)
+                self.log(f"[OK] [{vote_id}] Cloudflare 通过 + 真实页面已就绪 "
+                         f"(用了 {elapsed}s)")
                 return
             now = loop.time()
             if now - last_log > 15:
-                remaining = int(deadline - now)
-                self.log(f"[INFO] [{vote_id}] Cloudflare 仍在验证，已等 "
-                         f"{int(CLOUDFLARE_WAIT_TIMEOUT_MS / 1000 - remaining)}s，"
-                         f"还能等 {remaining}s")
+                try:
+                    cur_title = (await page.title())[:60]
+                except Exception:
+                    cur_title = "<?>"
+                self.log(f"[INFO] [{vote_id}] 仍在等 .character-card 渲染，"
+                         f"已等 {int(now - start)}s, title='{cur_title}'")
                 last_log = now
-        self.log(f"[WARN] [{vote_id}] Cloudflare 验证 {CLOUDFLARE_WAIT_TIMEOUT_MS // 1000}s "
-                 f"还没过，放弃本轮等待，后续可能拿不到 character.js")
+        self.log(f"[WARN] [{vote_id}] Cloudflare / 页面渲染超过 "
+                 f"{CLOUDFLARE_WAIT_TIMEOUT_MS // 1000}s 还没完成，放弃本轮等待")
 
     async def _solve_cloudflare_via_flaresolverr(
             self, proxy_url: Optional[str], vote_id: int) -> Optional[tuple]:
@@ -781,10 +659,12 @@ class Voter:
         if not fs_url:
             return None
         endpoint = f"{fs_url}/v1"
+        # CF 升 'under attack' 时 60s 经常不够，FS 内部 Chrome 解 JS 挑战要 90-120s。
+        # FS 服务端 maxTimeout 调高同时 httpx 客户端超时也跟着拉高一点（+30s 余量）。
         payload = {
             "cmd": "request.get",
             "url": self.VOTE_PAGE_URL,
-            "maxTimeout": 60000,
+            "maxTimeout": 120000,
         }
         if proxy_url:
             payload["proxy"] = {"url": proxy_url}
@@ -792,8 +672,10 @@ class Voter:
             import httpx as _httpx
             self.log(f"[INFO] [{vote_id}] FlareSolverr 过 Cloudflare 中"
                      f" (代理 {proxy_url or '本机'}) ...")
-            with _httpx.Client(timeout=80.0) as client:
-                r = client.post(endpoint, json=payload)
+            # 必须用 AsyncClient — 同步 httpx.Client 会 block 整个 event loop，
+            # 多 worker 并发时 FS 调用被串行化，concurrency=6 实际等于 1。
+            async with _httpx.AsyncClient(timeout=150.0) as client:
+                r = await client.post(endpoint, json=payload)
             obj = r.json()
         except Exception as e:
             self.log(f"[ERROR] [{vote_id}] FlareSolverr 调用异常: "
@@ -891,34 +773,26 @@ class Voter:
             self.cfg.target_button_index)
 
     async def _attempt(self, ctx: BrowserContext, vote_id: int,
-                       slot: int = 0) -> bool:
+                       slot: int = 0,
+                       proxy_url: Optional[str] = None) -> bool:
         """One round: vote for every selected character + send rating +
         send tier-list snapshot. First vote goes through the UI so the
         captcha can fire; the rest are POSTed via fetch() in the same
         page (same session/cookies/IP), which is much faster.
+
+        proxy_url: full proxy URL (e.g. "http://1.2.3.4:5678") that the
+        ctx is using. Forwarded to FlareSolverr so the cf_clearance cookie
+        it returns is IP-bound to the same IP the votes will be sent from.
         """
         page = await ctx.new_page()
         if not self.cfg.headless:
             await self._tile_window_cdp(ctx, page, slot, vote_id)
         try:
             # ★ FlareSolverr 过 Cloudflare（若配置了 flaresolverr_url）：
-            # 先让 FS 用本 ctx 的代理 IP 通过 Cloudflare，拿到 cf_clearance cookie，
-            # 然后注入到本 ctx，这样 page.goto 时浏览器直接被 Cloudflare 放行
+            # 让 FS 用本 ctx 的代理 IP 通过 Cloudflare，拿到的 cf_clearance
+            # 跟代理 IP 绑定；注入到本 ctx 后 page.goto 走同一个代理 IP，
+            # Cloudflare 看 cookie+IP 一致就直接放行，不再弹挑战。
             if (self.cfg.flaresolverr_url or "").strip():
-                proxy_url = None
-                try:
-                    cks_existing = await ctx.cookies(self.VOTE_PAGE_URL)
-                    # 简单获取 ctx 的代理：从 _new_context 调用方传过来不直观，
-                    # 这里干脆通过 ctx._impl_obj 获取（兼容性差），改成直接
-                    # 把 proxy 在 _attempt 的调用方传进来更稳。临时方案：
-                    # 让 FlareSolverr 不走代理（用 FS 容器自己的网络），后续
-                    # 把投票请求走代理 IP 即可（投票时已通过 cookie 标记）。
-                    pass
-                except Exception:
-                    pass
-                # 注意：这里 proxy_url 设为 None — FlareSolverr 用自己的容器网络
-                # 过 Cloudflare 拿 cf_clearance。cookie 注入到 ctx 后，ctx 自己
-                # 的代理 IP 走投票请求；Cloudflare 看到 cf_clearance 就放行。
                 fs_result = await self._solve_cloudflare_via_flaresolverr(
                     proxy_url, vote_id)
                 if fs_result:
@@ -1563,36 +1437,13 @@ class Voter:
                      f"{type(e).__name__}: {str(e)[:120]}")
             return False
 
-        # ---- 点击可靠性兜底：偶尔首次 click 触发不了 (页面没完全 ready /
-        # JS 事件还没绑上)。先用一个短窗口 (8s) 看 captcha/modal 是否出现，
-        # 没出现就再点一次，最多 3 次。3 次都不响应再走 reload 路径。----
-        FAST_CHECK_MS = 8_000
-        QUICK_RECLICK_MAX = 3
-        outcome = None
-        for click_try in range(1, QUICK_RECLICK_MAX + 1):
-            outcome = await self._wait_for_captcha_or_modal(page, FAST_CHECK_MS)
-            if outcome is not None:
-                break
-            if click_try >= QUICK_RECLICK_MAX:
-                break
-            self.log(f"[INFO] [{vote_id}] 点击后 {FAST_CHECK_MS // 1000}s 没动静，"
-                     f"再点一次 vote-btn (第 {click_try + 1}/{QUICK_RECLICK_MAX} 次)")
-            try:
-                card = page.locator(self.CANDIDATE_CARD_SELECTOR,
-                                    has_text=target_name).first
-                await card.scroll_into_view_if_needed()
-                # force=True：兜底防 overlap / out-of-view 类的偶发不可点
-                await card.locator(self.VOTE_BUTTON_SELECTOR).click(
-                    timeout=5_000, force=True)
-            except Exception as e:
-                self.log(f"[WARN] [{vote_id}] 快速重点失败: "
-                         f"{type(e).__name__}: {str(e)[:120]}")
-
         # ---- two-phase wait with stuck-detection recovery ----
-        if outcome is None:
-            self.log(f"[INFO] [{vote_id}] 快速点击 {QUICK_RECLICK_MAX} 次都没动静，"
-                     f"开始长等待 (每阶段 {STUCK_DETECT_MS // 1000} 秒)")
-            outcome = await self._wait_for_captcha_or_modal(page, STUCK_DETECT_MS)
+        # 注：上一版加过 "点击没反应就 8s 内再点一次" 的快速重点循环，但实测
+        # 会跟 captcha SDK 异步加载竞争（SDK 还在加载时被二次 click 干扰），
+        # 导致原本工作的并发场景反而卡住。已经撤掉，只保留原有的两段长等。
+        self.log(f"[INFO] [{vote_id}] 等待 captcha 或确认模态出现 "
+                 f"(每阶段 {STUCK_DETECT_MS // 1000} 秒, 共 2 阶段)")
+        outcome = await self._wait_for_captcha_or_modal(page, STUCK_DETECT_MS)
         if outcome is None:
             self.log(f"[INFO] [{vote_id}] 第 1 阶段超时，刷新页面重试")
             if not await self._reload_and_reclick_named(page, vote_id, target_name):
@@ -2388,7 +2239,8 @@ class Voter:
             ctx = await self._new_context(browser, proxy)
             ok = False
             try:
-                ok = await self._attempt(ctx, vote_id, slot=slot)
+                ok = await self._attempt(ctx, vote_id, slot=slot,
+                                          proxy_url=proxy.get("server"))
                 if ok:
                     return True
                 # [HARD] failed proxy gets blacklisted (observed pool drop)
